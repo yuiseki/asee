@@ -212,6 +212,12 @@ class GodModeVideoServer:
     def stop(self) -> None:
         self._stop_event.set()
 
+    def switch_camera(self, device_index: int) -> None:
+        """Request a camera switch for the single-camera capture loop."""
+        self._next_device = device_index
+        self._switch_event.set()
+        logger.info("Camera switch requested -> device %s", device_index)
+
     def _normalize_frame(self, frame: FrameArray) -> FrameArray:
         height, width = frame.shape[:2]
         if width == self.width and height == self.height:

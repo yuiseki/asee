@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from unittest.mock import call, patch
 from urllib.request import Request, urlopen
 
 import numpy as np
@@ -175,6 +176,138 @@ class TestGodModeVideoServer:
                 assert payload["display"] == "standalone"
                 assert payload["start_url"] == "/"
                 assert payload["icons"]
+        finally:
+            server.stop()
+            thread.join(timeout=3.0)
+
+    def test_multicamera_update_frame_keeps_primary_as_current_frame(self) -> None:
+        server = GodModeVideoServer(
+            port=18874,
+            device_index=None,
+            camera_list=[2, 4],
+        )
+        secondary = np.zeros((720, 1280, 3), dtype=np.uint8)
+        secondary[0, 0, 0] = 50
+        primary = np.zeros((720, 1280, 3), dtype=np.uint8)
+        primary[0, 0, 0] = 200
+
+        server.update_frame(secondary, camera_id=4)
+        assert server.current_frame is None
+
+        server.update_frame(primary, camera_id=2)
+
+        assert server.current_frame is primary
+
+    def test_multicamera_biometric_status_aggregates_across_cameras(self) -> None:
+        server = GodModeVideoServer(
+            port=18875,
+            device_index=None,
+            camera_list=[2, 4],
+        )
+
+        server._record_owner_presence([FaceBox(x=0, y=0, w=10, h=10, label="OWNER")], camera_id=2)
+        server._record_owner_presence(
+            [FaceBox(x=20, y=20, w=10, h=10, label="SUBJECT")],
+            camera_id=4,
+        )
+        status = server.get_biometric_status()
+
+        assert status["ownerPresent"] is True
+        assert status["ownerCount"] == 1
+        assert status["subjectCount"] == 1
+        assert status["peopleCount"] == 2
+
+    def test_switch_camera_sets_pending_target_and_event(self) -> None:
+        server = GodModeVideoServer(port=18876, device_index=0)
+
+        server.switch_camera(6)
+
+        assert server._next_device == 6
+        assert server._switch_event.is_set() is True
+
+    def test_iter_mjpeg_uses_primary_camera_generator_for_multicamera(self) -> None:
+        server = GodModeVideoServer(
+            port=18877,
+            device_index=None,
+            camera_list=[2, 4],
+        )
+
+        with (
+            patch.object(server, "_generate_mjpeg") as generate_main,
+            patch.object(
+                server,
+                "_generate_mjpeg_device",
+                side_effect=["primary-stream", "camera-4-stream"],
+            ) as generate_device,
+        ):
+            primary = server.iter_mjpeg()
+            camera_4 = server.iter_mjpeg(4)
+
+        assert primary == "primary-stream"
+        assert camera_4 == "camera-4-stream"
+        generate_main.assert_not_called()
+        assert generate_device.call_args_list == [call(2), call(4)]
+
+    def test_generate_mjpeg_device_uses_face_boxes_for_requested_camera(self) -> None:
+        server = GodModeVideoServer(
+            port=18878,
+            device_index=None,
+            camera_list=[2, 4],
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        server.update_frame(frame, camera_id=4)
+        face_boxes = [FaceBox(x=30, y=40, w=50, h=60, label="OWNER")]
+        server._face_boxes_per_cam[4] = face_boxes
+
+        draw_calls: list[dict[str, object]] = []
+
+        def fake_draw(
+            image: np.ndarray,
+            *,
+            frame_count: int,
+            face_boxes: list[FaceBox],
+            smooth: bool,
+        ) -> np.ndarray:
+            draw_calls.append(
+                {
+                    "frame_count": frame_count,
+                    "face_boxes": list(face_boxes),
+                    "smooth": smooth,
+                }
+            )
+            server.stop()
+            return image
+
+        with patch.object(server.overlay, "draw", side_effect=fake_draw), patch(
+            "asee.video_server.encode_frame_to_jpeg",
+            return_value=b"jpeg",
+        ):
+            chunk = next(server._generate_mjpeg_device(4))
+
+        assert chunk.startswith(b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg")
+        assert draw_calls == [
+            {
+                "frame_count": 1,
+                "face_boxes": face_boxes,
+                "smooth": False,
+            }
+        ]
+
+    def test_http_cameras_endpoint_returns_camera_ids(self) -> None:
+        server = GodModeVideoServer(
+            port=18879,
+            device_index=None,
+            camera_list=[2, 4],
+        )
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+        assert wait_until(lambda: server.is_running)
+
+        try:
+            with urlopen("http://127.0.0.1:18879/cameras", timeout=3) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                assert response.status == 200
+                assert payload == {"cameras": [2, 4]}
         finally:
             server.stop()
             thread.join(timeout=3.0)

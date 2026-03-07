@@ -83,5 +83,5 @@ python3 -m venv .venv
 
 ## Notes
 
-- `tmp/GOD_MODE` remains the source of truth until compatibility wrappers exist
+- `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now act as compatibility wrappers over `asee`
 - the future Electron UI belongs beside this backend, but not inside the CV/runtime core

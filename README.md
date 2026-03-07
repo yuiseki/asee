@@ -44,7 +44,7 @@ npm run demo
 
 ## Migration Notes
 
-- `tmp/GOD_MODE` remains the runtime source of truth until compatibility adapters exist
+- `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now be thin compatibility facades over `asee`
 - `god_mode_predictor.py` stays excluded as dead code
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
@@ -52,3 +52,4 @@ npm run demo
 - `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/GOD_MODE` compatibility wrappers
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
 - `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less and single-camera server behavior
+- remaining migration focus is multi-camera/live runtime glue and replacing the current backend host with `asee/python`

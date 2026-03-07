@@ -68,6 +68,7 @@ Accepted
 - `tmp/GOD_MODE` can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
 - `tmp/GOD_MODE` can also delegate state management and HTTP contract glue to `asee.server_runtime`
 - `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
+- compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer
