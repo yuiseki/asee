@@ -43,6 +43,16 @@ class LiveCameraDisabledError(RuntimeError):
     """Raised when the caller attempts live capture without an explicit opt-in."""
 
 
+@dataclass(frozen=True, slots=True)
+class CaptureSettings:
+    """Resolved capture parameters used for camera-open attempts."""
+
+    width: int
+    height: int
+    fps: float
+    fourcc: str
+
+
 @dataclass(slots=True)
 class CameraRuntimeStats:
     """Capture/detection counters recorded in diagnostic summaries."""
@@ -65,6 +75,42 @@ def encode_frame_to_jpeg(frame: FrameArray, quality: int = 70) -> bytes:
     if not ok:
         raise RuntimeError("JPEG encode failed")
     return buffer.tobytes()
+
+
+def decode_fourcc_value(value: float) -> str:
+    """Decode an OpenCV numeric FOURCC value into a 4-character code."""
+    int_value = int(value)
+    chars = [chr((int_value >> (8 * shift)) & 0xFF) for shift in range(4)]
+    return "".join(chars)
+
+
+def resolve_capture_settings(
+    *,
+    camera_ids: Sequence[int],
+    width: int | None = None,
+    height: int | None = None,
+    fps: float | None = None,
+    fourcc: str | None = None,
+) -> CaptureSettings:
+    """Resolve safe capture settings based on camera count and explicit overrides."""
+    base = (
+        CaptureSettings(width=640, height=360, fps=10.0, fourcc="MJPG")
+        if len(camera_ids) > 1
+        else CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
+    )
+    resolved = CaptureSettings(
+        width=base.width if width is None else int(width),
+        height=base.height if height is None else int(height),
+        fps=base.fps if fps is None else float(fps),
+        fourcc=base.fourcc if fourcc is None else str(fourcc).upper(),
+    )
+    if resolved.width <= 0 or resolved.height <= 0:
+        raise ValueError("Capture width and height must be positive integers")
+    if resolved.fps <= 0:
+        raise ValueError("Capture fps must be positive")
+    if len(resolved.fourcc) != 4:
+        raise ValueError("Capture FOURCC must be a 4-character code")
+    return resolved
 
 
 def resolve_camera_args(*, device: int, cameras_csv: str) -> tuple[int | None, list[int] | None]:
@@ -132,6 +178,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="安全のため指定秒数で自動停止する。0 以下で無効化",
     )
+    parser.add_argument("--width", type=int, default=None, help="キャプチャ要求幅")
+    parser.add_argument("--height", type=int, default=None, help="キャプチャ要求高さ")
+    parser.add_argument("--fps", type=float, default=None, help="キャプチャ要求 FPS")
+    parser.add_argument(
+        "--fourcc",
+        default=None,
+        help="キャプチャ要求 FOURCC (例: MJPG, YUYV, H264)",
+    )
+    parser.add_argument(
+        "--disable-face-detect",
+        action="store_true",
+        help="安全な切り分けのため顔検出 worker を起動しない",
+    )
     return parser
 
 
@@ -165,6 +224,11 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         diagnostics_logger=diagnostics_logger,
         memory_log_interval_sec=float(args.memory_log_interval_sec),
         auto_shutdown_sec=float(args.auto_shutdown_sec),
+        width=None if args.width is None else int(args.width),
+        height=None if args.height is None else int(args.height),
+        fps=None if args.fps is None else float(args.fps),
+        fourcc=None if args.fourcc is None else str(args.fourcc),
+        enable_face_detection=not bool(args.disable_face_detect),
     )
 
 
@@ -194,29 +258,43 @@ class GodModeVideoServer:
         face_capture_dir: str | None = None,
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
-        width: int = 1280,
-        height: int = 720,
+        width: int | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+        fourcc: str | None = None,
         owner_embedding_path: str | Path = OWNER_EMBED_PATH,
         allow_live_camera: bool = False,
         diagnostics_logger: DiagnosticsLogger | None = None,
         memory_log_interval_sec: float = 30.0,
         auto_shutdown_sec: float = 0.0,
+        enable_face_detection: bool = True,
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
             raise LiveCameraDisabledError(
                 "Live camera access is disabled by default. Pass --allow-live-camera to opt in."
             )
+        self.capture_settings = resolve_capture_settings(
+            camera_ids=requested_camera_list,
+            width=width,
+            height=height,
+            fps=fps,
+            fourcc=fourcc,
+        )
         self.port = port
         self.device_index = device_index
         self.title = title
-        self.width = width
-        self.height = height
+        self.width = self.capture_settings.width
+        self.height = self.capture_settings.height
         self._camera_list = requested_camera_list
         self._cam_interval = cam_interval
         self._cam_index = 0
         self._allow_live_camera = allow_live_camera
         self._auto_shutdown_sec = auto_shutdown_sec
+        self._capture_fps = self.capture_settings.fps
+        self._capture_period = 1.0 / self.capture_settings.fps
+        self._capture_fourcc = self.capture_settings.fourcc
+        self._enable_face_detection = enable_face_detection
         self._diagnostics = diagnostics_logger or NullDiagnosticsLogger()
         self._memory_monitor = MemoryMonitor(
             self._diagnostics,
@@ -335,6 +413,9 @@ class GodModeVideoServer:
             width=self.width,
             height=self.height,
             allow_live_camera=self._allow_live_camera,
+            requested_fps=self._capture_fps,
+            requested_fourcc=self._capture_fourcc,
+            face_detection_enabled=self._enable_face_detection,
             opencv_version=cv2.__version__,
             python_version=platform.python_version(),
             platform=platform.platform(),
@@ -353,21 +434,13 @@ class GodModeVideoServer:
                     target=self._capture_loop_device,
                     args=(device,),
                 )
-            for device in self._camera_list:
-                self._start_worker(
-                    name=f"face_detect_{device}",
-                    target=self._face_detect_loop_device,
-                    args=(device,),
-                )
+            self._start_face_detection_workers()
         elif self.device_index is not None:
             self._start_worker(
                 name="capture",
                 target=self._capture_loop,
             )
-            self._start_worker(
-                name="face_detect",
-                target=self._face_detect_loop,
-            )
+            self._start_face_detection_workers()
         else:
             self.update_frame(np.zeros((self.height, self.width, 3), dtype=np.uint8))
             self._diagnostics.log_event("camera_capture_disabled")
@@ -435,13 +508,15 @@ class GodModeVideoServer:
             camera_id=device_index,
             requested_width=self.width,
             requested_height=self.height,
+            requested_fps=self._capture_fps,
+            requested_fourcc=self._capture_fourcc,
         )
         cap = cv2.VideoCapture(device_index)
-        fourcc = cv2.VideoWriter_fourcc(*"MJPG")  # type: ignore[attr-defined]
+        fourcc = cv2.VideoWriter_fourcc(*self._capture_fourcc)  # type: ignore[attr-defined]
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_FPS, self._capture_fps)
         if not cap.isOpened():
             logger.error("Cannot open camera device %s", device_index)
             self._diagnostics.log_event("camera_open_failed", camera_id=device_index)
@@ -449,19 +524,27 @@ class GodModeVideoServer:
             return None
         actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        actual_fps = float(cap.get(cv2.CAP_PROP_FPS))
+        actual_fourcc = decode_fourcc_value(float(cap.get(cv2.CAP_PROP_FOURCC)))
         logger.info(
-            "Camera %s opened: requested=%sx%s actual=%sx%s",
+            "Camera %s opened: requested=%sx%s@%sfps/%s actual=%sx%s@%sfps/%s",
             device_index,
             self.width,
             self.height,
+            self._capture_fps,
+            self._capture_fourcc,
             actual_width,
             actual_height,
+            actual_fps,
+            actual_fourcc,
         )
         self._diagnostics.log_event(
             "camera_opened",
             camera_id=device_index,
             actual_width=actual_width,
             actual_height=actual_height,
+            actual_fps=actual_fps,
+            actual_fourcc=actual_fourcc,
         )
         return cap
 
@@ -498,7 +581,7 @@ class GodModeVideoServer:
             normalized = self._normalize_frame(frame)
             self.update_frame(normalized)
             self._record_capture_success(current_device, normalized)
-            time.sleep(1 / 30)
+            time.sleep(self._capture_period)
 
         cap.release()
         logger.info("Camera released")
@@ -520,7 +603,7 @@ class GodModeVideoServer:
             normalized = self._normalize_frame(frame)
             self.update_frame(normalized, camera_id=device)
             self._record_capture_success(device, normalized)
-            time.sleep(1 / 30)
+            time.sleep(self._capture_period)
 
         cap.release()
         logger.info("Camera %s released", device)
@@ -676,6 +759,23 @@ class GodModeVideoServer:
             auto_shutdown_sec=self._auto_shutdown_sec,
         )
         self.stop()
+
+    def _start_face_detection_workers(self) -> None:
+        if not self._enable_face_detection:
+            self._diagnostics.log_event("face_detection_disabled")
+            return
+        if self._camera_list:
+            for device in self._camera_list:
+                self._start_worker(
+                    name=f"face_detect_{device}",
+                    target=self._face_detect_loop_device,
+                    args=(device,),
+                )
+            return
+        self._start_worker(
+            name="face_detect",
+            target=self._face_detect_loop,
+        )
 
     def _record_http_request(
         self,

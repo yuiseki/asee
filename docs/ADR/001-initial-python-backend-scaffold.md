@@ -61,10 +61,15 @@ Accepted
 - the tenth extracted slice hardens the extracted runtime for safe operation before more live-camera migration
   - `asee.video_server` defaults to no-camera mode
   - live webcam access requires an explicit `--allow-live-camera` opt-in
+  - single-camera mode keeps a higher-fidelity default request (`1280x720 @ 30fps MJPG`)
+  - multi-camera mode now drops to a lower-risk default request (`640x360 @ 10fps MJPG`)
+  - capture-mode overrides are explicit via `--width`, `--height`, `--fps`, and `--fourcc`
+  - detector pressure can be removed with `--disable-face-detect`
   - risky repro runs can be bounded with `--auto-shutdown-sec`
   - persistent JSONL diagnostics and `faulthandler` logs are enabled for CLI launches
   - periodic memory samples track RSS/HWM, open FDs, GC counters, and `tracemalloc`
   - HTTP requests and camera worker lifecycle are logged for crash reconstruction
+  - negotiated capture width/height/fps/FOURCC are logged after camera-open to expose driver-level fallback or mismatch
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -73,6 +78,7 @@ Accepted
 - migration can begin with low-risk contract extraction and unit tests
 - the Python backend remains testable without cameras, OpenCV, or a desktop session
 - the default operational mode is now intentionally conservative: no-camera unless explicitly unlocked
+- multi-camera live migration is intentionally conservative as well: lower requested resolution and FPS unless the operator overrides them on purpose
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals
@@ -83,6 +89,7 @@ Accepted
 - compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
 - `god_mode_enroll_owner.py` can also move behind an `asee.enroll_owner` compatibility facade
 - crash reproduction now leaves a persistent forensic trail even when automatic tests cannot cover the failure mode
+- safer staged experiments are now possible by disabling face-detect workers and arming automatic shutdown before touching real hardware
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer

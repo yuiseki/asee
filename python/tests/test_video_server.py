@@ -12,7 +12,13 @@ import numpy as np
 import pytest
 
 from asee.tracking import FaceBox
-from asee.video_server import GodModeVideoServer, LiveCameraDisabledError, encode_frame_to_jpeg
+from asee.video_server import (
+    CaptureSettings,
+    GodModeVideoServer,
+    LiveCameraDisabledError,
+    decode_fourcc_value,
+    encode_frame_to_jpeg,
+)
 
 
 def wait_until(predicate: object, *, timeout: float = 2.0) -> bool:
@@ -56,6 +62,50 @@ class TestGodModeVideoServer:
 
         assert server.port == 18865
         assert server.is_running is False
+
+    def test_single_camera_defaults_to_720p_30fps_mjpg(self) -> None:
+        server = GodModeVideoServer(port=188651, device_index=0, allow_live_camera=True)
+
+        assert server.capture_settings == CaptureSettings(
+            width=1280,
+            height=720,
+            fps=30.0,
+            fourcc="MJPG",
+        )
+
+    def test_multicamera_defaults_to_lower_risk_capture_profile(self) -> None:
+        server = GodModeVideoServer(
+            port=188652,
+            device_index=None,
+            camera_list=[0, 2, 4, 6],
+            allow_live_camera=True,
+        )
+
+        assert server.capture_settings == CaptureSettings(
+            width=640,
+            height=360,
+            fps=10.0,
+            fourcc="MJPG",
+        )
+
+    def test_explicit_capture_profile_override_is_preserved(self) -> None:
+        server = GodModeVideoServer(
+            port=188653,
+            device_index=None,
+            camera_list=[0, 2],
+            allow_live_camera=True,
+            width=800,
+            height=600,
+            fps=12.5,
+            fourcc="YUYV",
+        )
+
+        assert server.capture_settings == CaptureSettings(
+            width=800,
+            height=600,
+            fps=12.5,
+            fourcc="YUYV",
+        )
 
     def test_update_frame(self) -> None:
         server = GodModeVideoServer(port=18866, device_index=None)
@@ -413,6 +463,11 @@ class TestGodModeVideoServer:
 
 
 class TestOpenCameraResolution:
+    def test_decode_fourcc_value_round_trips_mjpg(self) -> None:
+        import cv2
+
+        assert decode_fourcc_value(float(cv2.VideoWriter_fourcc(*"MJPG"))) == "MJPG"
+
     def test_open_camera_sets_fourcc_mjpg(self) -> None:
         from unittest.mock import MagicMock, patch
 
@@ -433,6 +488,12 @@ class TestOpenCameraResolution:
             return True
 
         mock_cap.set.side_effect = cap_set
+        mock_cap.get.side_effect = lambda prop: {
+            cv2.CAP_PROP_FRAME_WIDTH: 1280.0,
+            cv2.CAP_PROP_FRAME_HEIGHT: 720.0,
+            cv2.CAP_PROP_FPS: 30.0,
+            cv2.CAP_PROP_FOURCC: float(cv2.VideoWriter_fourcc(*"MJPG")),
+        }.get(prop, 0.0)
 
         with patch("cv2.VideoCapture", return_value=mock_cap):
             server = GodModeVideoServer(device_index=None)

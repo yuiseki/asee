@@ -30,6 +30,10 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# lower-risk multi-camera repro defaults
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
+# isolate camera/native pressure from face-detect pressure
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
@@ -37,6 +41,10 @@ python3 -m venv .venv
 ## Safety And Diagnostics
 
 - `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
+- single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
+- multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
+- `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.
+- `--disable-face-detect` lets us separate camera/native instability from detector/runtime instability.
 - Every CLI launch now creates a persistent JSONL diagnostics log under `~/.local/state/asee/video-server/` unless `--diagnostic-log-path` is specified.
 - Each run also enables `faulthandler` and writes a sibling `.fault.log`.
 - The diagnostics stream records:
@@ -46,6 +54,7 @@ python3 -m venv .venv
   - periodic memory samples with RSS/HWM, FD count, GC counters, and `tracemalloc`
 - Use `--memory-log-interval-sec` to tighten or relax memory sampling.
 - Use `--auto-shutdown-sec` to force a short-lived live-camera session for safer repro attempts.
+- Camera-open diagnostics also record the negotiated width, height, fps, and FOURCC observed after `VideoCapture.set()` so mode negotiation stays auditable.
 
 ## Initial Modules
 
@@ -94,7 +103,10 @@ python3 -m venv .venv
 - `asee.video_server`
   - `GodModeVideoServer`
   - `LiveCameraDisabledError`
+  - `CaptureSettings`
+  - `decode_fourcc_value()`
   - `encode_frame_to_jpeg()`
+  - `resolve_capture_settings()`
   - no-camera-safe HTTP compatibility server on top of extracted modules
 - `asee.enroll_owner`
   - `fetch_frame_from_server()`

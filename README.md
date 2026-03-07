@@ -11,7 +11,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - OWNER policy and YuNet detection pipeline
   - rebuilt `GodModeOverlay` runtime on top of extracted primitives
   - rebuilt viewer/server state holder for the GOD MODE HTTP contract
-  - rebuilt `GodModeVideoServer` compatibility server for camera-less and single-camera paths
+  - rebuilt `GodModeVideoServer` compatibility server for camera-less, single-camera, and safety-limited multi-camera paths
   - rebuilt OWNER enrollment flow
 - `electron/`
   - Electron + React + TypeScript viewer
@@ -34,6 +34,10 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# safer multi-camera repro: lower-risk defaults + bounded lifetime
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
+# extra isolation: disable face-detect workers while checking capture stability
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
@@ -41,6 +45,10 @@ python3 -m venv .venv
 ## Safety Policy
 
 - `asee.video_server` now defaults to no-camera mode. `--device` defaults to `-1`, and live capture is blocked unless `--allow-live-camera` is present.
+- single-camera runs keep the higher-fidelity default request: `1280x720 @ 30fps MJPG`.
+- multi-camera runs now default to a lower-risk request: `640x360 @ 10fps MJPG`.
+- operators can override the requested capture mode explicitly with `--width`, `--height`, `--fps`, and `--fourcc`.
+- risky detection load can be isolated with `--disable-face-detect`.
 - This is intentional. Direct migration to real webcams stays disabled by default until memory behavior and crash forensics are good enough.
 
 ## Diagnostics
@@ -54,6 +62,7 @@ python3 -m venv .venv
   - periodic process memory samples, including RSS/HWM, FD count, GC counters, and `tracemalloc`
 - Override the destination with `--diagnostic-log-path`, or tune sampling with `--memory-log-interval-sec`.
 - For risky live-camera repros, `--auto-shutdown-sec 60..180` gives the process a bounded lifetime even if the operator forgets to stop it.
+- `camera_opened` diagnostics now include the negotiated width, height, fps, and FOURCC returned by OpenCV so capture-mode mismatches remain visible in logs.
 
 ### Electron viewer
 
@@ -74,7 +83,7 @@ npm run demo
 - `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`
 - `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/GOD_MODE` compatibility wrappers
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
-- `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less and single-camera server behavior
+- `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less, single-camera, and safety-limited multi-camera server behavior
 - `python/asee.enroll_owner` is now the migration target for OWNER enrollment
-- remaining migration focus is multi-camera/live runtime glue and replacing the current backend host with `asee/python`
+- remaining migration focus is multi-camera/live runtime glue, reducing native-memory risk, and replacing the current backend host with `asee/python`
 - until live capture stability is proven, `asee` treats no-camera mode and persistent diagnostics as the safe default

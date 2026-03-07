@@ -35,13 +35,16 @@ from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
 from .video_server import (
+    CaptureSettings,
     GodModeVideoServer,
     LiveCameraDisabledError,
     build_arg_parser,
     build_server_from_args,
+    decode_fourcc_value,
     encode_frame_to_jpeg,
     main,
     resolve_camera_args,
+    resolve_capture_settings,
 )
 from .web_shell import (
     build_icon_svg,
@@ -51,6 +54,7 @@ from .web_shell import (
 
 __all__ = [
     "BiometricStatusTracker",
+    "CaptureSettings",
     "FaceBox",
     "FaceCaptureWriter",
     "FaceTracker",
@@ -66,6 +70,7 @@ __all__ = [
     "build_camera_csv",
     "build_default_diagnostics_log_path",
     "detect_v4l2_devices",
+    "decode_fourcc_value",
     "DEFAULT_OWNER_EMBED_PATH",
     "EnrollmentError",
     "keep_largest_owner",
@@ -91,5 +96,6 @@ __all__ = [
     "to_square",
     "encode_frame_to_jpeg",
     "resolve_camera_args",
+    "resolve_capture_settings",
     "run_enrollment",
 ]

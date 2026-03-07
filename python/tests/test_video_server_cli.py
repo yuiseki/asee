@@ -9,10 +9,12 @@ from unittest.mock import patch
 import pytest
 
 from asee.video_server import (
+    CaptureSettings,
     LiveCameraDisabledError,
     build_server_from_args,
     main,
     resolve_camera_args,
+    resolve_capture_settings,
 )
 
 
@@ -37,6 +39,34 @@ def test_resolve_camera_args_uses_first_camera_when_csv_is_present() -> None:
     assert camera_list == [2, 4, 6]
 
 
+def test_resolve_capture_settings_uses_safe_multicamera_defaults() -> None:
+    settings = resolve_capture_settings(camera_ids=[0, 2, 4, 6])
+
+    assert settings == CaptureSettings(
+        width=640,
+        height=360,
+        fps=10.0,
+        fourcc="MJPG",
+    )
+
+
+def test_resolve_capture_settings_respects_explicit_overrides() -> None:
+    settings = resolve_capture_settings(
+        camera_ids=[0, 2],
+        width=800,
+        height=600,
+        fps=12.5,
+        fourcc="YUYV",
+    )
+
+    assert settings == CaptureSettings(
+        width=800,
+        height=600,
+        fps=12.5,
+        fourcc="YUYV",
+    )
+
+
 def test_build_server_from_args_disables_empty_capture_dirs() -> None:
     args = SimpleNamespace(
         port=8765,
@@ -51,6 +81,11 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        disable_face_detect=True,
     )
 
     with (
@@ -72,6 +107,11 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         diagnostics_logger=logger_class.return_value,
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        enable_face_detection=False,
     )
 
 
@@ -89,6 +129,11 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         diagnostic_log_path=None,
         memory_log_interval_sec=30.0,
         auto_shutdown_sec=0.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        disable_face_detect=False,
     )
 
     with (
@@ -120,6 +165,11 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=0.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        disable_face_detect=False,
     )
 
     with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
