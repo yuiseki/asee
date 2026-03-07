@@ -8,8 +8,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - extracted Python backend from `tmp/GOD_MODE`
   - camera layout, biometric status, HTTP shell contract, DNN backend policy
 - `electron/`
-  - Electron + React + TypeScript viewer scaffold
-  - future home for the GOD MODE desktop surface
+  - Electron + React + TypeScript viewer
+  - already reads the existing GOD MODE HTTP contract through a preload bridge
+  - future home for the full GOD MODE desktop surface
 - `docs/ADR/`
   - repository-level architecture decisions
 
@@ -42,3 +43,4 @@ npm run demo
 - `god_mode_predictor.py` stays excluded as dead code
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
+- `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`

@@ -1,10 +1,12 @@
 :root {
+  --c: rgba(0, 255, 160, 0.72);
+  --c-dim: rgba(0, 255, 160, 0.35);
+  --fs: clamp(11px, 0.85vw, 28px);
+  --sp: clamp(12px, 1.2vw, 40px);
   color-scheme: dark;
-  font-family: 'IBM Plex Sans', 'Noto Sans JP', sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(0, 255, 160, 0.14), transparent 35%),
-    linear-gradient(160deg, #04110d 0%, #071813 55%, #020504 100%);
-  color: #dbffe8;
+  font-family: 'IBM Plex Mono', 'Noto Sans Mono CJK JP', monospace;
+  background: #000;
+  color: var(--c);
 }
 
 * {
@@ -14,74 +16,162 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
   margin: 0;
 }
 
 body {
-  min-height: 100vh;
+  overflow: hidden;
 }
 
-.shell {
-  min-height: 100vh;
-  padding: 48px;
+.viewer-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
 }
 
-.hero {
-  max-width: 760px;
+.camera-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(0, 255, 160, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(2, 14, 10, 0.55), rgba(0, 0, 0, 0.9));
 }
 
-.eyebrow {
-  margin: 0 0 12px;
+.single-feed,
+.cam-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.9) contrast(1.05);
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.cam-tile {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 160, 0.14);
+  background: #000;
+}
+
+.tile-label {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(0, 255, 160, 0.62);
+}
+
+.placeholder-feed {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(0, 255, 160, 0.58);
+  letter-spacing: 0.12em;
+}
+
+.corner {
+  position: absolute;
+  top: var(--sp);
+  left: var(--sp);
+  width: clamp(20px, 2vw, 60px);
+  height: clamp(20px, 2vw, 60px);
+  border-top: 1px solid var(--c-dim);
+  border-left: 1px solid var(--c-dim);
+  z-index: 10;
+}
+
+.clock {
+  position: absolute;
+  top: var(--sp);
+  right: var(--sp);
+  z-index: 10;
+  font-size: var(--fs);
+  letter-spacing: 0.08em;
+  color: var(--c-dim);
+}
+
+.panel {
+  position: absolute;
+  z-index: 10;
+  min-width: min(30vw, 360px);
+  max-width: min(36vw, 520px);
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.48);
+  border: 1px solid rgba(0, 255, 160, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.panel-env {
+  right: var(--sp);
+  bottom: calc(var(--sp) + 5vh);
+}
+
+.panel-status {
+  left: var(--sp);
+  bottom: var(--sp);
+}
+
+.panel-label {
+  margin: 0 0 8px;
+  font-size: calc(var(--fs) * 0.85);
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 13px;
-  color: rgba(177, 255, 214, 0.72);
+  color: var(--c-dim);
 }
 
-.hero h1 {
+.panel-body,
+.panel-subtle,
+.status-headline {
   margin: 0;
-  font-size: clamp(44px, 7vw, 92px);
-  line-height: 0.95;
 }
 
-.lede {
-  margin: 20px 0 0;
-  max-width: 58ch;
-  font-size: clamp(18px, 2vw, 28px);
-  line-height: 1.5;
-  color: rgba(219, 255, 232, 0.8);
+.status-headline {
+  font-size: clamp(16px, 1.2vw, 28px);
+  margin-bottom: 8px;
+  color: #c8ffe0;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-top: 40px;
-}
-
-.card {
-  min-height: 180px;
-  padding: 24px;
-  border: 1px solid rgba(111, 255, 190, 0.22);
-  border-radius: 24px;
-  background: rgba(6, 20, 16, 0.7);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
-}
-
-.card h2 {
-  margin: 0 0 12px;
-  font-size: 24px;
-}
-
-.card p {
-  margin: 0;
+.panel-body {
+  color: rgba(220, 220, 220, 0.9);
+  white-space: pre-wrap;
   line-height: 1.6;
-  color: rgba(219, 255, 232, 0.76);
 }
 
-@media (max-width: 640px) {
-  .shell {
-    padding: 24px;
+.panel-subtle {
+  margin-top: 8px;
+  color: rgba(180, 255, 218, 0.62);
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .tile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    max-width: calc(100vw - (var(--sp) * 2));
+    min-width: 0;
+  }
+
+  .panel-status {
+    right: var(--sp);
+    left: var(--sp);
+    bottom: var(--sp);
+  }
+
+  .panel-env {
+    bottom: calc(var(--sp) + 18vh);
   }
 }

@@ -15,10 +15,12 @@ Accepted
 - keep `repos/asee/python` as the Python package root
 - add `repos/asee/electron` as the Electron + React + TypeScript viewer root
 - keep repository-level ADRs in `repos/asee/docs/ADR`
-- reuse proven Electron launch patterns from `acaption` and `asec`, but keep `asee/electron` limited to scaffold-level responsibilities until the backend bridge is defined
+- reuse proven Electron launch patterns from `acaption` and `asec`
+- define the first backend bridge as a read-only preload client for the existing GOD MODE HTTP contract
 
 ## Consequences
 
 - Python and Electron can evolve with their own toolchains without stepping on each other
 - future CV/runtime extraction can continue under `python/` while UI work lands under `electron/`
 - the repository structure now matches the intended long-term architecture before heavier migration work begins
+- the Electron viewer can progress immediately against the existing backend before the runtime migration is complete
