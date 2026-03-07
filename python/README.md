@@ -33,6 +33,8 @@ cd ..
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
 - `tmp_main.sh` now builds the Electron app before launch and supervises the viewer process separately, so a viewer-only crash can be retried without restarting the backend.
 - `ASEE_VIEWER_RESPAWN=0` disables that retry loop for bounded experiments.
+- GPU backend experiments and PRIME offload hints can now be injected through `tmp_main.sh` with env vars such as `ASEE_VIEWER_USE_GL=desktop`, `ASEE_VIEWER_USE_ANGLE=gl`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX=1`, `ASEE_VIEWER_EXTRA_ARGS='--enable-logging=stderr --v=1'`, `__NV_PRIME_RENDER_OFFLOAD=1`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, and `DRI_PRIME=1`.
+- `tmp_main.sh` logs those effective GPU env settings plus the resolved Electron args into `/tmp/asee_tmp_main_viewer_<port>.log` on each viewer launch.
 - legacy `god_mode.sh`-style flags like `--chromium` are still accepted as compatibility no-ops by `tmp_main.sh`.
 
 ```bash

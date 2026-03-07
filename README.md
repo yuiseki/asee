@@ -36,6 +36,8 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
 - `ASEE_VIEWER_RESPAWN=0` disables that respawn loop when a bounded test wants the viewer to exit only once.
+- GPU experiments now flow through `tmp_main.sh` into the Electron runner via env vars such as `ASEE_VIEWER_USE_GL=desktop`, `ASEE_VIEWER_USE_ANGLE=gl`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX=1`, `ASEE_VIEWER_EXTRA_ARGS='--enable-logging=stderr --v=1'`, and PRIME offload hints like `__NV_PRIME_RENDER_OFFLOAD=1`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `DRI_PRIME=1`.
+- each viewer restart logs the effective GPU env values and resolved Electron args into `/tmp/asee_tmp_main_viewer_<port>.log`.
 - `stop` now terminates backend/viewer by process group, tolerates stale pid files, and always removes `/tmp/asee_tmp_main_<port>.pids`.
 - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` are accepted as no-op compatibility shims while callers migrate.
 

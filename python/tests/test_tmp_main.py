@@ -75,6 +75,15 @@ with open(log_path, "a", encoding="utf-8") as handle:
             "viewer_title": os.environ.get("ASEE_VIEWER_TITLE"),
             "poll_interval_ms": os.environ.get("ASEE_VIEWER_POLL_INTERVAL_MS"),
             "respawn": os.environ.get("ASEE_VIEWER_RESPAWN"),
+            "disable_gpu": os.environ.get("ASEE_VIEWER_DISABLE_GPU"),
+            "use_gl": os.environ.get("ASEE_VIEWER_USE_GL"),
+            "use_angle": os.environ.get("ASEE_VIEWER_USE_ANGLE"),
+            "disable_gpu_sandbox": os.environ.get("ASEE_VIEWER_DISABLE_GPU_SANDBOX"),
+            "extra_args": os.environ.get("ASEE_VIEWER_EXTRA_ARGS"),
+            "prime_render_offload": os.environ.get("__NV_PRIME_RENDER_OFFLOAD"),
+            "prime_render_provider": os.environ.get("__NV_PRIME_RENDER_OFFLOAD_PROVIDER"),
+            "glx_vendor": os.environ.get("__GLX_VENDOR_LIBRARY_NAME"),
+            "dri_prime": os.environ.get("DRI_PRIME"),
         },
         handle,
     )
@@ -165,6 +174,46 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
     assert node_invocation["backend_url"] == "http://127.0.0.1:19140"
     assert node_invocation["viewer_title"] == "ASEE Viewer"
     assert node_invocation["respawn"] == "0"
+
+
+def test_start_passes_gpu_experiment_env_to_viewer(tmp_path: Path) -> None:
+    env, invocation_log = _build_stubbed_env(tmp_path, port=19144)
+    env.update(
+        {
+            "ASEE_VIEWER_DISABLE_GPU": "0",
+            "ASEE_VIEWER_USE_GL": "desktop",
+            "ASEE_VIEWER_USE_ANGLE": "gl",
+            "ASEE_VIEWER_DISABLE_GPU_SANDBOX": "1",
+            "ASEE_VIEWER_EXTRA_ARGS": "--enable-logging=stderr --v=1",
+            "__NV_PRIME_RENDER_OFFLOAD": "1",
+            "__NV_PRIME_RENDER_OFFLOAD_PROVIDER": "NVIDIA-G0",
+            "__GLX_VENDOR_LIBRARY_NAME": "nvidia",
+            "DRI_PRIME": "1",
+        }
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT), "start", "--port", "19144", "--device", "0"],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    invocations = _load_invocations(invocation_log)
+    node_invocation = _find_invocation(invocations, "node")
+    assert node_invocation["disable_gpu"] == "0"
+    assert node_invocation["use_gl"] == "desktop"
+    assert node_invocation["use_angle"] == "gl"
+    assert node_invocation["disable_gpu_sandbox"] == "1"
+    assert node_invocation["extra_args"] == "--enable-logging=stderr --v=1"
+    assert node_invocation["prime_render_offload"] == "1"
+    assert node_invocation["prime_render_provider"] == "NVIDIA-G0"
+    assert node_invocation["glx_vendor"] == "nvidia"
+    assert node_invocation["dri_prime"] == "1"
 
 
 def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:

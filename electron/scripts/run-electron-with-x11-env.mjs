@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
-import { buildElectronArgs, parseArgs, parseBool } from './launch-options.mjs';
+import { buildElectronArgs, parseArgs, resolveLaunchOptions } from './launch-options.mjs';
 import { buildElectronLaunchEnv, discoverDesktopSessionEnv } from './x11-env.mjs';
 
 function runCommand(command, args, options = {}) {
@@ -27,7 +27,8 @@ function runCommand(command, args, options = {}) {
 }
 
 async function main() {
-  const { autoDemo, exitAfterDemo, skipBuild, disableGpu } = parseArgs(process.argv.slice(2));
+  const cliOptions = parseArgs(process.argv.slice(2));
+  const { autoDemo, exitAfterDemo, skipBuild } = cliOptions;
   const projectRoot = join(import.meta.dirname, '..');
   const electronBinary = join(
     projectRoot,
@@ -55,15 +56,21 @@ async function main() {
     ...(autoDemo ? { ASEE_VIEWER_AUTODEMO: '1' } : {}),
     ...(exitAfterDemo ? { ASEE_VIEWER_EXIT_AFTER_DEMO: '1' } : {}),
   };
+  const launchOptions = resolveLaunchOptions({
+    cliOptions,
+    env: process.env,
+  });
+  const electronArgs = buildElectronArgs(launchOptions);
+  console.error(
+    `ASEE viewer launch args: ${electronArgs.join(' ')}`,
+  );
 
   await runCommand(
     electronBinary,
-    buildElectronArgs({
-      disableGpu: disableGpu || parseBool(process.env.ASEE_VIEWER_DISABLE_GPU),
-    }),
+    electronArgs,
     {
-    cwd: projectRoot,
-    env: electronEnv,
+      cwd: projectRoot,
+      env: electronEnv,
     },
   );
 }
