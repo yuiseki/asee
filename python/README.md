@@ -16,6 +16,7 @@ Python backend for camera recognition and biometric status inside `repos/asee`.
   - `GodModeOverlay` runtime rebuilt on top of extracted `asee` primitives
   - viewer/server state holder rebuilt from `god_mode_video_server.py`
   - `GodModeVideoServer` compatibility server rebuilt from `god_mode_video_server.py`
+  - OWNER enrollment flow rebuilt from `god_mode_enroll_owner.py`
 - `god_mode_predictor.py` is intentionally excluded from migration for now
 
 ## Commands
@@ -72,6 +73,10 @@ python3 -m venv .venv
   - `GodModeVideoServer`
   - `encode_frame_to_jpeg()`
   - camera-less/single-camera HTTP compatibility server on top of extracted modules
+- `asee.enroll_owner`
+  - `fetch_frame_from_server()`
+  - `run_enrollment()`
+  - OWNER embedding capture from server snapshot or direct camera fallback
 
 ## Planned Next Slice
 
@@ -88,4 +93,5 @@ python3 -m venv .venv
 
 - `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now act as compatibility wrappers over `asee`
 - `tmp/GOD_MODE/god_mode_camera_layout.py` can also act as a compatibility wrapper over `asee.camera_layout`
+- `tmp/GOD_MODE/god_mode_enroll_owner.py` can also act as a compatibility wrapper over `asee.enroll_owner`
 - the future Electron UI belongs beside this backend, but not inside the CV/runtime core

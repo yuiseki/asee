@@ -54,6 +54,10 @@ Accepted
   - `encode_frame_to_jpeg()`
   - camera-less and single-camera HTTP compatibility behavior
   - MJPG camera-open policy and frame normalization helpers
+- the ninth extracted slice rebuilds OWNER enrollment inside `asee.enroll_owner`
+  - server snapshot fetch
+  - direct camera fallback
+  - embedding collection and persistence
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -69,6 +73,7 @@ Accepted
 - `tmp/GOD_MODE` can also delegate state management and HTTP contract glue to `asee.server_runtime`
 - `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
 - compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
+- `god_mode_enroll_owner.py` can also move behind an `asee.enroll_owner` compatibility facade
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer

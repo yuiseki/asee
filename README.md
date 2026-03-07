@@ -12,6 +12,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - rebuilt `GodModeOverlay` runtime on top of extracted primitives
   - rebuilt viewer/server state holder for the GOD MODE HTTP contract
   - rebuilt `GodModeVideoServer` compatibility server for camera-less and single-camera paths
+  - rebuilt OWNER enrollment flow
 - `electron/`
   - Electron + React + TypeScript viewer
   - already reads the existing GOD MODE HTTP contract through a preload bridge
@@ -53,4 +54,5 @@ npm run demo
 - `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/GOD_MODE` compatibility wrappers
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
 - `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less and single-camera server behavior
+- `python/asee.enroll_owner` is now the migration target for OWNER enrollment
 - remaining migration focus is multi-camera/live runtime glue and replacing the current backend host with `asee/python`

@@ -15,6 +15,12 @@ from .dnn_policy import (
     emit_opencl_nonfatal_warning_note,
     should_use_opencl_dnn,
 )
+from .enroll_owner import (
+    DEFAULT_OWNER_EMBED_PATH,
+    EnrollmentError,
+    fetch_frame_from_server,
+    run_enrollment,
+)
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
 from .overlay import GodModeOverlay
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
@@ -45,6 +51,8 @@ __all__ = [
     "build_server_from_args",
     "build_camera_csv",
     "detect_v4l2_devices",
+    "DEFAULT_OWNER_EMBED_PATH",
+    "EnrollmentError",
     "keep_largest_owner",
     "main",
     "OWNER_COSINE_THRESHOLD",
@@ -53,6 +61,7 @@ __all__ = [
     "build_icon_svg",
     "build_service_worker_script",
     "build_web_manifest",
+    "fetch_frame_from_server",
     "YunetDetectionPipeline",
     "emit_opencl_nonfatal_warning_note",
     "extend_with_optional_camera",
@@ -66,4 +75,5 @@ __all__ = [
     "to_square",
     "encode_frame_to_jpeg",
     "resolve_camera_args",
+    "run_enrollment",
 ]
