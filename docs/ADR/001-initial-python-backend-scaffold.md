@@ -9,6 +9,7 @@ Accepted
 - `tmp/GOD_MODE` mixes camera capture, face recognition, HTTP serving, Chromium/PWA display, VOICEVOX, and shell orchestration
 - the future replacement should use Electron for the visual surface, but image processing remains Python-first
 - `god_mode_predictor.py` is currently dead code and should not shape the initial repository boundary
+- `tmp/GOD_MODE/god_mode.sh` should migrate into `repos/asee/tmp_main.sh`, while `repos/asee/electron` becomes the official viewer surface
 
 ## Decision
 
@@ -76,6 +77,11 @@ Accepted
   - negotiated capture width/height/fps/FOURCC are logged after camera-open to expose driver-level fallback or mismatch
   - until model assets are migrated physically, the extracted runtime reuses `tmp/GOD_MODE/models/` as the fallback source of YuNet, SFace, and owner embeddings
   - local copies in `python/src/asee/models/` are treated as private operator state and excluded from Git history
+- the eleventh extracted slice moves the temporary operator launcher into `repos/asee/tmp_main.sh`
+  - `tmp_main.sh` becomes the canonical GOD MODE-style start/stop/restart/status/layout entrypoint during migration
+  - it launches `python -m asee.video_server` together with `repos/asee/electron`
+  - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` remain accepted as compatibility no-ops
+  - `stop` cleans up backend/viewer by process group, tolerates stale pid files, and always removes the launcher pid file
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
@@ -96,8 +102,11 @@ Accepted
 - `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
 - compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
 - `god_mode_enroll_owner.py` can also move behind an `asee.enroll_owner` compatibility facade
+- `tmp/GOD_MODE/god_mode.sh` now has a concrete migration target in `repos/asee/tmp_main.sh`
+- Electron is now the official viewer route for migrated runs, not an auxiliary read-only shell
+- bounded auto-shutdown runs no longer require manual pid file cleanup before the next `start`
 - crash reproduction now leaves a persistent forensic trail even when automatic tests cannot cover the failure mode
 - safer staged experiments are now possible by disabling face-detect workers and arming automatic shutdown before touching real hardware
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
-  - Electron viewer as a separate surface layer
+  - Electron viewer plus temporary operator launcher in `repos/asee`

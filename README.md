@@ -22,6 +22,20 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 
 ## Commands
 
+### Temporary operator launcher
+
+```bash
+./tmp_main.sh start --port 8765 --cameras 0,2,4,6 --capture-profile 720p --auto-shutdown-sec 30
+./tmp_main.sh status --port 8765
+./tmp_main.sh layout --port 8765 --left-bottom
+./tmp_main.sh stop --port 8765
+```
+
+- `tmp_main.sh` is now the canonical GOD MODE-style launcher for `repos/asee`.
+- It starts `python -m asee.video_server` and the official `electron/` viewer together.
+- `stop` now terminates backend/viewer by process group, tolerates stale pid files, and always removes `/tmp/asee_tmp_main_<port>.pids`.
+- legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` are accepted as no-op compatibility shims while callers migrate.
+
 ### Python backend
 
 ```bash
@@ -84,11 +98,13 @@ npm run demo
 ```
 
 - the Electron viewer now keeps exactly one polling interval alive, so `ASEE_VIEWER_POLL_INTERVAL_MS` is honored instead of multiplying backend request load on each refresh.
+- `electron/` is now the official viewer surface for `asee`; Chromium/PWA is no longer the target UI path.
 
 ## Migration Notes
 
 - `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now be thin compatibility facades over `asee`
 - `god_mode_predictor.py` stays excluded as dead code
+- `repos/asee/tmp_main.sh` is the migration target for `tmp/GOD_MODE/god_mode.sh`
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
 - `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`
@@ -96,5 +112,5 @@ npm run demo
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
 - `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less, single-camera, and safety-limited multi-camera server behavior
 - `python/asee.enroll_owner` is now the migration target for OWNER enrollment
-- remaining migration focus is multi-camera/live runtime glue, reducing native-memory risk, and replacing the current backend host with `asee/python`
+- remaining migration focus is wiring existing callers over to `repos/asee/tmp_main.sh`, reducing native-memory risk further, and retiring the tmp wrapper once callers move
 - until live capture stability is proven, `asee` treats no-camera mode and persistent diagnostics as the safe default

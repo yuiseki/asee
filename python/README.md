@@ -22,6 +22,17 @@ Python backend for camera recognition and biometric status inside `repos/asee`.
 ## Commands
 
 ```bash
+cd ..
+./tmp_main.sh start --port 8765 --cameras 0,2,4,6 --capture-profile 720p --auto-shutdown-sec 30
+./tmp_main.sh status --port 8765
+./tmp_main.sh stop --port 8765
+```
+
+- `../tmp_main.sh` is now the temporary canonical launcher when the backend should run together with the official Electron viewer.
+- `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
+- legacy `god_mode.sh`-style flags like `--chromium` are still accepted as compatibility no-ops by `tmp_main.sh`.
+
+```bash
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest
@@ -65,6 +76,7 @@ python3 -m venv .venv
 - Camera-open diagnostics also record the negotiated width, height, fps, and FOURCC observed after `VideoCapture.set()` so mode negotiation stays auditable.
 - Memory diagnostics now record both total threads and Python threads, which makes native thread surplus explicit in JSONL logs.
 - the Electron viewer now keeps a single polling timer, so `ASEE_VIEWER_POLL_INTERVAL_MS` maps cleanly to backend request rate.
+- `repos/asee/electron` is now the official viewer surface; `tmp_main.sh` launches it with `ASEE_VIEWER_BACKEND_URL` and `ASEE_VIEWER_TITLE`.
 
 ## Initial Modules
 
@@ -141,3 +153,4 @@ python3 -m venv .venv
 - `tmp/GOD_MODE/god_mode_camera_layout.py` can also act as a compatibility wrapper over `asee.camera_layout`
 - `tmp/GOD_MODE/god_mode_enroll_owner.py` can also act as a compatibility wrapper over `asee.enroll_owner`
 - the future Electron UI belongs beside this backend, but not inside the CV/runtime core
+- `repos/asee/tmp_main.sh` now owns the temporary GOD MODE-style start/stop/layout lifecycle, while `god_mode_predictor.py` remains intentionally outside the repo boundary
