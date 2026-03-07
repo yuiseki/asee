@@ -12,6 +12,7 @@ Python backend for camera recognition and biometric status inside `repos/asee`.
   - Flask HTTP shell contract for `god_mode_video_server.py`
   - DNN backend policy helpers for `god_mode_overlay.py`
   - face tracking primitives and capture persistence helpers from `god_mode_overlay.py`
+  - OWNER selection policy and YuNet detection pipeline from `god_mode_overlay.py`
 - `god_mode_predictor.py` is intentionally excluded from migration for now
 
 ## Commands
@@ -48,12 +49,20 @@ python3 -m venv .venv
   - `FaceTracker`
 - `asee.capture_writer`
   - `FaceCaptureWriter`
+- `asee.owner_policy`
+  - `keep_largest_owner()`
+  - `OWNER_TOPK`
+  - `OWNER_COSINE_THRESHOLD`
+- `asee.detection_runtime`
+  - `to_square()`
+  - `YunetDetectionPipeline`
 
 ## Planned Next Slice
 
 - extract more of the Python backend contract from `god_mode_video_server.py`
 - extract backend adapters from `god_mode_overlay.py` without dragging OpenCV UI concerns
 - move the runtime-facing overlay class to `asee/python` on top of the extracted primitives
+- replace direct `tmp/GOD_MODE` detector/classifier orchestration with `asee` modules
 - add compatibility adapters around the extracted Flask app factory
 - keep image processing and biometric inference in Python
 - add an Electron viewer separately instead of pushing CV logic into TypeScript

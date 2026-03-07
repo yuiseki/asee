@@ -8,6 +8,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - extracted Python backend from `tmp/GOD_MODE`
   - camera layout, biometric status, HTTP shell contract, DNN backend policy
   - face tracking and capture persistence primitives
+  - OWNER policy and YuNet detection pipeline
 - `electron/`
   - Electron + React + TypeScript viewer
   - already reads the existing GOD MODE HTTP contract through a preload bridge

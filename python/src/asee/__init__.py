@@ -3,12 +3,14 @@
 from .biometric_status import BiometricStatusTracker
 from .camera_layout import extend_with_optional_camera, parse_v4l2_devices
 from .capture_writer import FaceCaptureWriter
+from .detection_runtime import YunetDetectionPipeline, to_square
 from .dnn_policy import (
     IMPORTANT_OPENCL_WARNING_NOTE,
     emit_opencl_nonfatal_warning_note,
     should_use_opencl_dnn,
 )
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
+from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .tracking import FaceBox, FaceTracker
 from .web_shell import (
     build_icon_svg,
@@ -22,14 +24,19 @@ __all__ = [
     "FaceCaptureWriter",
     "FaceTracker",
     "IMPORTANT_OPENCL_WARNING_NOTE",
+    "keep_largest_owner",
+    "OWNER_COSINE_THRESHOLD",
+    "OWNER_TOPK",
     "create_http_app",
     "build_icon_svg",
     "build_service_worker_script",
     "build_web_manifest",
+    "YunetDetectionPipeline",
     "emit_opencl_nonfatal_warning_note",
     "extend_with_optional_camera",
     "InMemoryHttpRuntime",
     "OverlayTextState",
     "parse_v4l2_devices",
     "should_use_opencl_dnn",
+    "to_square",
 ]
