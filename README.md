@@ -47,6 +47,8 @@ python3 -m venv .venv
 - `asee.video_server` now defaults to no-camera mode. `--device` defaults to `-1`, and live capture is blocked unless `--allow-live-camera` is present.
 - single-camera runs keep the higher-fidelity default request: `1280x720 @ 30fps MJPG`.
 - multi-camera runs now default to a lower-risk request: `640x360 @ 10fps MJPG`.
+- current OWNER enrollment still collects embeddings through a `1280x720` overlay path, so the lower-risk multi-camera profile trades recognition quality for stability.
+- if recognition quality matters more than load, either re-enroll under the same runtime conditions or move detection/embedding back to a higher-resolution capture path.
 - operators can override the requested capture mode explicitly with `--width`, `--height`, `--fps`, and `--fourcc`.
 - multi-camera runs also cap OpenCV's internal worker pool to `1` thread by default; `--opencv-threads` can override this when a controlled benchmark needs it.
 - when `repos/asee/python/src/asee/models/` is empty, `asee` now falls back to `tmp/GOD_MODE/models/` for YuNet, SFace, and `owner_embedding.npy`.
@@ -77,6 +79,8 @@ npm test
 npm run build
 npm run demo
 ```
+
+- the Electron viewer now keeps exactly one polling interval alive, so `ASEE_VIEWER_POLL_INTERVAL_MS` is honored instead of multiplying backend request load on each refresh.
 
 ## Migration Notes
 

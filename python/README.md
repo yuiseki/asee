@@ -43,6 +43,8 @@ python3 -m venv .venv
 - `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
 - single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
 - multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
+- `asee.enroll_owner` still captures OWNER embeddings through a `1280x720` overlay path, so the multi-camera safe profile knowingly gives up some biometric fidelity to stay below the crash threshold.
+- if that tradeoff is unacceptable, the next safer move is to keep rendering low-resolution while restoring a higher-resolution capture path for detection and embedding.
 - `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.
 - multi-camera runs also default OpenCV's internal worker pool to `1`; `--opencv-threads` can override that when a benchmark explicitly needs more.
 - if `python/src/asee/models/` does not contain YuNet, SFace, or `owner_embedding.npy`, `asee` falls back to `tmp/GOD_MODE/models/` so the extracted runtime can reuse the proven assets.
@@ -59,6 +61,7 @@ python3 -m venv .venv
 - Use `--auto-shutdown-sec` to force a short-lived live-camera session for safer repro attempts.
 - Camera-open diagnostics also record the negotiated width, height, fps, and FOURCC observed after `VideoCapture.set()` so mode negotiation stays auditable.
 - Memory diagnostics now record both total threads and Python threads, which makes native thread surplus explicit in JSONL logs.
+- the Electron viewer now keeps a single polling timer, so `ASEE_VIEWER_POLL_INTERVAL_MS` maps cleanly to backend request rate.
 
 ## Initial Modules
 

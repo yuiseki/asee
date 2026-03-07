@@ -63,6 +63,8 @@ Accepted
   - live webcam access requires an explicit `--allow-live-camera` opt-in
   - single-camera mode keeps a higher-fidelity default request (`1280x720 @ 30fps MJPG`)
   - multi-camera mode now drops to a lower-risk default request (`640x360 @ 10fps MJPG`)
+  - OWNER enrollment still runs through a `1280x720` overlay path, so the low-risk multi-camera profile intentionally trades some recognition fidelity for crash resistance
+  - if the fidelity gap becomes unacceptable, the next design step is to decouple detection/embedding resolution from rendered stream resolution
   - capture-mode overrides are explicit via `--width`, `--height`, `--fps`, and `--fourcc`
   - multi-camera mode also caps OpenCV's internal worker pool to a single thread unless explicitly overridden
   - detector pressure can be removed with `--disable-face-detect`
@@ -75,6 +77,7 @@ Accepted
   - local copies in `python/src/asee/models/` are treated as private operator state and excluded from Git history
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
+- the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
 
 ## Consequences
 

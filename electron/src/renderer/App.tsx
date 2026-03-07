@@ -86,7 +86,7 @@ export function App() {
     return () => {
       window.clearInterval(timerId);
     };
-  }, [config.pollIntervalMs, refreshSnapshot]);
+  }, [config.pollIntervalMs]);
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
