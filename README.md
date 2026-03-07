@@ -34,6 +34,8 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - `tmp_main.sh` is now the canonical temporary operator launcher for `repos/asee`.
 - It starts `python -m asee.video_server` and the official `electron/` viewer together.
 - The official Electron window caption is `ASEE Viewer`.
+- viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
+- `ASEE_VIEWER_RESPAWN=0` disables that respawn loop when a bounded test wants the viewer to exit only once.
 - `stop` now terminates backend/viewer by process group, tolerates stale pid files, and always removes `/tmp/asee_tmp_main_<port>.pids`.
 - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` are accepted as no-op compatibility shims while callers migrate.
 
@@ -100,6 +102,7 @@ npm run demo
 
 - the Electron viewer now keeps exactly one polling interval alive, so `ASEE_VIEWER_POLL_INTERVAL_MS` is honored instead of multiplying backend request load on each refresh.
 - `electron/` is now the official viewer surface for `asee`; Chromium/PWA is no longer the target UI path.
+- `tmp_main.sh` now prebuilds the viewer before launch, then runs the Electron process through `scripts/run-electron-with-x11-env.mjs --skip-build` so viewer crashes can be supervised separately from build failures.
 
 ## Migration Notes
 

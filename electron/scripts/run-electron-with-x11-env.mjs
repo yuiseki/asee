@@ -1,14 +1,8 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
+import { buildElectronArgs, parseArgs, parseBool } from './launch-options.mjs';
 import { buildElectronLaunchEnv, discoverDesktopSessionEnv } from './x11-env.mjs';
-
-function parseArgs(argv) {
-  return {
-    autoDemo: argv.includes('--auto-demo'),
-    exitAfterDemo: argv.includes('--exit-after-demo'),
-  };
-}
 
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -33,7 +27,7 @@ function runCommand(command, args, options = {}) {
 }
 
 async function main() {
-  const { autoDemo, exitAfterDemo } = parseArgs(process.argv.slice(2));
+  const { autoDemo, exitAfterDemo, skipBuild, disableGpu } = parseArgs(process.argv.slice(2));
   const projectRoot = join(import.meta.dirname, '..');
   const electronBinary = join(
     projectRoot,
@@ -49,10 +43,12 @@ async function main() {
     detectedEnv,
   });
 
-  await runCommand('npm', ['run', 'build'], {
-    cwd: projectRoot,
-    env,
-  });
+  if (!skipBuild) {
+    await runCommand('npm', ['run', 'build'], {
+      cwd: projectRoot,
+      env,
+    });
+  }
 
   const electronEnv = {
     ...env,
@@ -60,10 +56,16 @@ async function main() {
     ...(exitAfterDemo ? { ASEE_VIEWER_EXIT_AFTER_DEMO: '1' } : {}),
   };
 
-  await runCommand(electronBinary, ['.', '--no-sandbox'], {
+  await runCommand(
+    electronBinary,
+    buildElectronArgs({
+      disableGpu: disableGpu || parseBool(process.env.ASEE_VIEWER_DISABLE_GPU),
+    }),
+    {
     cwd: projectRoot,
     env: electronEnv,
-  });
+    },
+  );
 }
 
 main().catch((error) => {

@@ -9,6 +9,7 @@ npm install
 npm test
 npm run build
 npm run demo
+npm run start
 ```
 
 ## Scope
@@ -18,6 +19,8 @@ npm run demo
 - consumes backend outputs from `../python` through a preload bridge
 - currently supports the existing `tmp/GOD_MODE` HTTP contract as a read-only viewer
 - launches as a frameless desktop surface so KDE title bars do not eat into the camera grid
+- `scripts/run-electron-with-x11-env.mjs` now supports `--skip-build` so operator wrappers can separate build failures from runtime crashes
+- `ASEE_VIEWER_DISABLE_GPU=1` or `--disable-gpu` can be used for GPU-related crash isolation
 
 ## Current Backend Contract
 
@@ -25,6 +28,10 @@ npm run demo
   - default: `http://127.0.0.1:8765`
 - `ASEE_VIEWER_POLL_INTERVAL_MS`
   - default: `2000`
+- `ASEE_VIEWER_RESPAWN`
+  - used by `../tmp_main.sh`
+  - default: `1`
+  - set `0` to disable viewer auto-restart during bounded tests
 - consumes:
   - `/cameras`
   - `/overlay_text`

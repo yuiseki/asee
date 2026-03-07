@@ -58,6 +58,30 @@ with open(log_path, "a", encoding="utf-8") as handle:
 """,
     )
     _write_executable(
+        bin_dir / "node",
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+log_path = os.environ["ASEE_TMP_MAIN_INVOCATIONS"]
+with open(log_path, "a", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "cmd": "node",
+            "argv": sys.argv[1:],
+            "cwd": os.getcwd(),
+            "backend_url": os.environ.get("ASEE_VIEWER_BACKEND_URL"),
+            "viewer_title": os.environ.get("ASEE_VIEWER_TITLE"),
+            "poll_interval_ms": os.environ.get("ASEE_VIEWER_POLL_INTERVAL_MS"),
+            "respawn": os.environ.get("ASEE_VIEWER_RESPAWN"),
+        },
+        handle,
+    )
+    handle.write("\\n")
+""",
+    )
+    _write_executable(
         bin_dir / "curl",
         """#!/usr/bin/env bash
 printf '{"running":true}\\n'
@@ -80,6 +104,7 @@ exit 0
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["ASEE_PYTHON_BIN"] = str(bin_dir / "python-stub")
     env["ASEE_TMP_MAIN_INVOCATIONS"] = str(invocation_log)
+    env["ASEE_VIEWER_RESPAWN"] = "0"
     env["DISPLAY"] = ":0"
     return env, invocation_log
 
@@ -131,9 +156,15 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
     assert python_argv[python_argv.index("--capture-profile") + 1] == "720p"
 
     npm_invocation = _find_invocation(invocations, "npm")
-    assert npm_invocation["argv"] == ["run", "start"]
-    assert npm_invocation["backend_url"] == "http://127.0.0.1:19140"
-    assert npm_invocation["viewer_title"] == "ASEE Viewer"
+    assert npm_invocation["argv"] == ["run", "build"]
+
+    node_invocation = _find_invocation(invocations, "node")
+    node_argv = [str(item) for item in node_invocation["argv"]]
+    assert node_argv[0] == "./scripts/run-electron-with-x11-env.mjs"
+    assert "--skip-build" in node_argv
+    assert node_invocation["backend_url"] == "http://127.0.0.1:19140"
+    assert node_invocation["viewer_title"] == "ASEE Viewer"
+    assert node_invocation["respawn"] == "0"
 
 
 def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
@@ -170,8 +201,13 @@ def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
     assert python_argv[python_argv.index("--device") + 1] == "0"
 
     npm_invocation = _find_invocation(invocations, "npm")
-    assert npm_invocation["argv"] == ["run", "start"]
-    assert npm_invocation["viewer_title"] == "ASEE Viewer"
+    assert npm_invocation["argv"] == ["run", "build"]
+
+    node_invocation = _find_invocation(invocations, "node")
+    node_argv = [str(item) for item in node_invocation["argv"]]
+    assert node_argv[0] == "./scripts/run-electron-with-x11-env.mjs"
+    assert "--skip-build" in node_argv
+    assert node_invocation["viewer_title"] == "ASEE Viewer"
 
 
 def test_stop_removes_pid_file_and_terminates_recorded_processes(tmp_path: Path) -> None:

@@ -22,6 +22,9 @@ PWA_INSTALLING=false
 OLLAMA_VLM=false
 FACE_CAPTURE_DIR="${ASEE_FACE_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/faces/_raw}"
 VIEWER_POLL_INTERVAL_MS="${ASEE_VIEWER_POLL_INTERVAL_MS:-2000}"
+VIEWER_RESPAWN="${ASEE_VIEWER_RESPAWN:-1}"
+VIEWER_RESPAWN_DELAY_SEC="${ASEE_VIEWER_RESPAWN_DELAY_SEC:-2}"
+VIEWER_DISABLE_GPU="${ASEE_VIEWER_DISABLE_GPU:-0}"
 LAYOUT_MODE=""
 LAYOUT_X=0
 LAYOUT_Y=1058
@@ -42,6 +45,7 @@ refresh_port_paths() {
   PID_FILE="/tmp/asee_tmp_main_${PORT}.pids"
   SERVER_LOG="/tmp/asee_tmp_main_server_${PORT}.log"
   VIEWER_LOG="/tmp/asee_tmp_main_viewer_${PORT}.log"
+  VIEWER_RUNNER="/tmp/asee_tmp_main_viewer_runner_${PORT}.sh"
 }
 
 refresh_port_paths
@@ -378,6 +382,57 @@ require_start_prereqs() {
     echo "Missing npm in PATH" >&2
     return 1
   fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Missing node in PATH" >&2
+    return 1
+  fi
+}
+
+build_viewer() {
+  printf '[%s] viewer build start\n' "$(date --iso-8601=seconds)" >> "${VIEWER_LOG}"
+  (
+    cd "${ELECTRON_DIR}" || exit 1
+    env DISPLAY="${DISPLAY}" npm run build
+  ) >> "${VIEWER_LOG}" 2>&1
+}
+
+write_viewer_runner() {
+  local disable_gpu_arg=""
+  if [[ "${VIEWER_DISABLE_GPU}" == "1" ]]; then
+    disable_gpu_arg="--disable-gpu"
+  fi
+
+  cat > "${VIEWER_RUNNER}" <<EOF
+#!/usr/bin/env bash
+set -u
+trap 'exit 0' TERM INT HUP
+cd "${ELECTRON_DIR}" || exit 1
+
+while true; do
+  printf '[%s] viewer run start\n' "\$(date --iso-8601=seconds)" >> "${VIEWER_LOG}"
+  env \\
+    DISPLAY="${DISPLAY}" \\
+    ASEE_VIEWER_BACKEND_URL="${SERVER_URL}" \\
+    ASEE_VIEWER_TITLE="${WINDOW_TITLE}" \\
+    ASEE_VIEWER_POLL_INTERVAL_MS="${VIEWER_POLL_INTERVAL_MS}" \\
+    ASEE_VIEWER_DISABLE_GPU="${VIEWER_DISABLE_GPU}" \\
+    node ./scripts/run-electron-with-x11-env.mjs --skip-build ${disable_gpu_arg} >> "${VIEWER_LOG}" 2>&1
+  viewer_rc=\$?
+  printf '[%s] viewer run exit code=%s\n' "\$(date --iso-8601=seconds)" "\${viewer_rc}" >> "${VIEWER_LOG}"
+  if [[ "${VIEWER_RESPAWN}" != "1" ]]; then
+    exit "\${viewer_rc}"
+  fi
+  printf '[%s] viewer respawn after %ss\n' "\$(date --iso-8601=seconds)" "${VIEWER_RESPAWN_DELAY_SEC}" >> "${VIEWER_LOG}"
+  sleep "${VIEWER_RESPAWN_DELAY_SEC}"
+done
+EOF
+  chmod +x "${VIEWER_RUNNER}"
+}
+
+launch_viewer_supervisor() {
+  write_viewer_runner
+  setsid "${VIEWER_RUNNER}" > /dev/null 2>&1 &
+  echo "$!"
 }
 
 cmd_start() {
@@ -400,6 +455,7 @@ cmd_start() {
   fi
 
   echo "=== ASEE TMP MAIN START (PORT ${PORT}) ==="
+  printf '[%s] tmp_main start\n' "$(date --iso-8601=seconds)" >> "${VIEWER_LOG}"
 
   local -a server_args
   server_args=(
@@ -433,19 +489,14 @@ cmd_start() {
     exit 1
   fi
 
-  (
-    cd "${ELECTRON_DIR}" || exit 1
-    env \
-      DISPLAY="${DISPLAY}" \
-      ASEE_VIEWER_BACKEND_URL="${SERVER_URL}" \
-      ASEE_VIEWER_TITLE="${WINDOW_TITLE}" \
-      ASEE_VIEWER_POLL_INTERVAL_MS="${VIEWER_POLL_INTERVAL_MS}" \
-      setsid npm run start > "${VIEWER_LOG}" 2>&1 < /dev/null &
-    echo "$!"
-  ) > "/tmp/asee_tmp_main_viewer_${PORT}.pid"
   local viewer_pid
-  viewer_pid="$(cat "/tmp/asee_tmp_main_viewer_${PORT}.pid" 2>/dev/null || true)"
-  rm -f "/tmp/asee_tmp_main_viewer_${PORT}.pid"
+  if ! build_viewer; then
+    echo "Viewer build failed; cleaning up." >&2
+    save_pids "${server_pid}" ""
+    cmd_stop >/dev/null 2>&1 || true
+    exit 1
+  fi
+  viewer_pid="$(launch_viewer_supervisor)"
 
   save_pids "${server_pid}" "${viewer_pid}"
   echo "  viewer: pid=${viewer_pid:-unknown}"
@@ -463,6 +514,7 @@ cmd_stop() {
   kill_process_group viewer || rc=1
   kill_process_group server || rc=1
   rm -f "${PID_FILE}"
+  rm -f "${VIEWER_RUNNER}"
   echo "=== ASEE TMP MAIN ${PORT} STOPPED ==="
   return "${rc}"
 }
