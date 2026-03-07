@@ -8,3 +8,5 @@ build/
 node_modules/
 __pycache__/
 *.pyc
+python/src/asee/models/*
+!python/src/asee/models/.gitignore

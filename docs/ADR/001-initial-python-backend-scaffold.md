@@ -72,6 +72,7 @@ Accepted
   - HTTP requests and camera worker lifecycle are logged for crash reconstruction
   - negotiated capture width/height/fps/FOURCC are logged after camera-open to expose driver-level fallback or mismatch
   - until model assets are migrated physically, the extracted runtime reuses `tmp/GOD_MODE/models/` as the fallback source of YuNet, SFace, and owner embeddings
+  - local copies in `python/src/asee/models/` are treated as private operator state and excluded from Git history
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
