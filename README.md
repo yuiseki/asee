@@ -74,7 +74,7 @@ python3 -m venv .venv
 - if recognition quality matters more than load, either re-enroll under the same runtime conditions or move detection/embedding back to a higher-resolution capture path.
 - operators can override the requested capture mode explicitly with `--width`, `--height`, `--fps`, and `--fourcc`.
 - multi-camera runs also cap OpenCV's internal worker pool to `1` thread by default; `--opencv-threads` can override this when a controlled benchmark needs it.
-- when `repos/asee/python/src/asee/models/` is empty, `asee` now falls back to `tmp/GOD_MODE/models/` for YuNet, SFace, and `owner_embedding.npy`.
+- YuNet, SFace, and `owner_embedding.npy` are now resolved only from `repos/asee/python/src/asee/models/`.
 - local copies under `python/src/asee/models/` are intentionally gitignored so private biometric assets never get pushed by accident.
 - risky detection load can be isolated with `--disable-face-detect`.
 - This is intentional. Direct migration to real webcams stays disabled by default until memory behavior and crash forensics are good enough.
@@ -111,7 +111,7 @@ npm run demo
 
 - `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now be thin compatibility facades over `asee`
 - `god_mode_predictor.py` stays excluded as dead code
-- `repos/asee/tmp_main.sh` is the migration target for `tmp/GOD_MODE/god_mode.sh`
+- `repos/asee/tmp_main.sh` is now the canonical operator entrypoint that replaced the legacy `tmp/GOD_MODE/god_mode.sh` flow
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
 - `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`

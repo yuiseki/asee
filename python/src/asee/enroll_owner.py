@@ -1,4 +1,4 @@
-"""OWNER enrollment flow extracted from tmp/GOD_MODE."""
+"""OWNER enrollment flow owned by asee."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ class VideoCaptureLike(Protocol):
 
 
 def fetch_frame_from_server(server_url: str) -> FrameArray | None:
-    """Fetch one snapshot frame from a running GOD MODE-compatible server."""
+    """Fetch one snapshot frame from a running asee-compatible server."""
     if not server_url:
         return None
     try:

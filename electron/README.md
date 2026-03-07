@@ -17,7 +17,7 @@ npm run start
 - desktop viewer shell only
 - no image processing logic
 - consumes backend outputs from `../python` through a preload bridge
-- currently supports the existing `tmp/GOD_MODE` HTTP contract as a read-only viewer
+- currently supports the canonical `asee` / legacy-GOD-MODE-compatible HTTP contract as a viewer
 - launches as a frameless desktop surface so KDE title bars do not eat into the camera grid
 - `scripts/run-electron-with-x11-env.mjs` now supports `--skip-build` so operator wrappers can separate build failures from runtime crashes
 - `ASEE_VIEWER_DISABLE_GPU=1` or `--disable-gpu` can be used for GPU-related crash isolation

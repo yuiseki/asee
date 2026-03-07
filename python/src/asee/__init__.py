@@ -32,7 +32,6 @@ from .enroll_owner import (
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
 from .model_assets import (
     candidate_model_asset_paths,
-    discover_legacy_models_dir,
     resolve_model_asset_path,
 )
 from .overlay import GodModeOverlay
@@ -79,7 +78,6 @@ __all__ = [
     "detect_v4l2_devices",
     "decode_fourcc_value",
     "DEFAULT_OWNER_EMBED_PATH",
-    "discover_legacy_models_dir",
     "EnrollmentError",
     "keep_largest_owner",
     "main",
