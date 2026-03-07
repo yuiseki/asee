@@ -51,9 +51,21 @@ def test_resolve_capture_settings_uses_safe_multicamera_defaults() -> None:
     )
 
 
+def test_resolve_capture_settings_supports_720p_profile_for_multicamera() -> None:
+    settings = resolve_capture_settings(camera_ids=[0, 2, 4, 6], capture_profile="720p")
+
+    assert settings == CaptureSettings(
+        width=1280,
+        height=720,
+        fps=10.0,
+        fourcc="MJPG",
+    )
+
+
 def test_resolve_capture_settings_respects_explicit_overrides() -> None:
     settings = resolve_capture_settings(
         camera_ids=[0, 2],
+        capture_profile="720p",
         width=800,
         height=600,
         fps=12.5,
@@ -90,6 +102,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
+        capture_profile="auto",
         width=None,
         height=None,
         fps=None,
@@ -117,6 +130,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         diagnostics_logger=logger_class.return_value,
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
+        capture_profile="auto",
         width=None,
         height=None,
         fps=None,
@@ -140,6 +154,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         diagnostic_log_path=None,
         memory_log_interval_sec=30.0,
         auto_shutdown_sec=0.0,
+        capture_profile="auto",
         width=None,
         height=None,
         fps=None,
@@ -177,6 +192,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=0.0,
+        capture_profile="auto",
         width=None,
         height=None,
         fps=None,

@@ -90,12 +90,29 @@ class TestGodModeVideoServer:
         )
         assert server._opencv_threads == 1
 
+    def test_multicamera_supports_explicit_720p_profile(self) -> None:
+        server = GodModeVideoServer(
+            port=1886521,
+            device_index=None,
+            camera_list=[0, 2, 4, 6],
+            allow_live_camera=True,
+            capture_profile="720p",
+        )
+
+        assert server.capture_settings == CaptureSettings(
+            width=1280,
+            height=720,
+            fps=10.0,
+            fourcc="MJPG",
+        )
+
     def test_explicit_capture_profile_override_is_preserved(self) -> None:
         server = GodModeVideoServer(
             port=188653,
             device_index=None,
             camera_list=[0, 2],
             allow_live_camera=True,
+            capture_profile="720p",
             width=800,
             height=600,
             fps=12.5,

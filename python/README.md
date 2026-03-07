@@ -34,6 +34,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # isolate camera/native pressure from face-detect pressure
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
+# bounded 720p multi-camera trial
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --capture-profile 720p --opencv-threads 1 --auto-shutdown-sec 30
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
@@ -43,6 +45,7 @@ python3 -m venv .venv
 - `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
 - single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
 - multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
+- `--capture-profile 720p` is the explicit shortcut when both rendering and recognition should stay at `1280x720`; multi-camera keeps `10fps MJPG` for bounded trials.
 - `asee.enroll_owner` still captures OWNER embeddings through a `1280x720` overlay path, so the multi-camera safe profile knowingly gives up some biometric fidelity to stay below the crash threshold.
 - if that tradeoff is unacceptable, the next safer move is to keep rendering low-resolution while restoring a higher-resolution capture path for detection and embedding.
 - `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.

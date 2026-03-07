@@ -88,17 +88,30 @@ def decode_fourcc_value(value: float) -> str:
 def resolve_capture_settings(
     *,
     camera_ids: Sequence[int],
+    capture_profile: str = "auto",
     width: int | None = None,
     height: int | None = None,
     fps: float | None = None,
     fourcc: str | None = None,
 ) -> CaptureSettings:
     """Resolve safe capture settings based on camera count and explicit overrides."""
-    base = (
-        CaptureSettings(width=640, height=360, fps=10.0, fourcc="MJPG")
-        if len(camera_ids) > 1
-        else CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
-    )
+    normalized_profile = capture_profile.strip().lower()
+    if normalized_profile not in {"auto", "720p"}:
+        raise ValueError("Capture profile must be one of: auto, 720p")
+
+    if normalized_profile == "720p":
+        base = CaptureSettings(
+            width=1280,
+            height=720,
+            fps=10.0 if len(camera_ids) > 1 else 30.0,
+            fourcc="MJPG",
+        )
+    else:
+        base = (
+            CaptureSettings(width=640, height=360, fps=10.0, fourcc="MJPG")
+            if len(camera_ids) > 1
+            else CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
+        )
     resolved = CaptureSettings(
         width=base.width if width is None else int(width),
         height=base.height if height is None else int(height),
@@ -194,6 +207,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="安全のため指定秒数で自動停止する。0 以下で無効化",
     )
+    parser.add_argument(
+        "--capture-profile",
+        choices=("auto", "720p"),
+        default="auto",
+        help="既定キャプチャ profile。auto は低リスク既定、720p は 1280x720 を要求する",
+    )
     parser.add_argument("--width", type=int, default=None, help="キャプチャ要求幅")
     parser.add_argument("--height", type=int, default=None, help="キャプチャ要求高さ")
     parser.add_argument("--fps", type=float, default=None, help="キャプチャ要求 FPS")
@@ -246,6 +265,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         diagnostics_logger=diagnostics_logger,
         memory_log_interval_sec=float(args.memory_log_interval_sec),
         auto_shutdown_sec=float(args.auto_shutdown_sec),
+        capture_profile=str(args.capture_profile),
         width=None if args.width is None else int(args.width),
         height=None if args.height is None else int(args.height),
         fps=None if args.fps is None else float(args.fps),
@@ -292,6 +312,7 @@ class GodModeVideoServer:
         memory_log_interval_sec: float = 30.0,
         auto_shutdown_sec: float = 0.0,
         enable_face_detection: bool = True,
+        capture_profile: str = "auto",
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -300,6 +321,7 @@ class GodModeVideoServer:
             )
         self.capture_settings = resolve_capture_settings(
             camera_ids=requested_camera_list,
+            capture_profile=capture_profile,
             width=width,
             height=height,
             fps=fps,
@@ -319,6 +341,7 @@ class GodModeVideoServer:
         self._cam_index = 0
         self._allow_live_camera = allow_live_camera
         self._auto_shutdown_sec = auto_shutdown_sec
+        self._capture_profile = capture_profile
         self._capture_fps = self.capture_settings.fps
         self._capture_period = 1.0 / self.capture_settings.fps
         self._capture_fourcc = self.capture_settings.fourcc
@@ -441,6 +464,7 @@ class GodModeVideoServer:
             width=self.width,
             height=self.height,
             allow_live_camera=self._allow_live_camera,
+            capture_profile=self._capture_profile,
             requested_fps=self._capture_fps,
             requested_fourcc=self._capture_fourcc,
             opencv_threads=self._opencv_threads,
