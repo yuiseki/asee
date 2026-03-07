@@ -48,6 +48,7 @@ python3 -m venv .venv
 - single-camera runs keep the higher-fidelity default request: `1280x720 @ 30fps MJPG`.
 - multi-camera runs now default to a lower-risk request: `640x360 @ 10fps MJPG`.
 - operators can override the requested capture mode explicitly with `--width`, `--height`, `--fps`, and `--fourcc`.
+- multi-camera runs also cap OpenCV's internal worker pool to `1` thread by default; `--opencv-threads` can override this when a controlled benchmark needs it.
 - risky detection load can be isolated with `--disable-face-detect`.
 - This is intentional. Direct migration to real webcams stays disabled by default until memory behavior and crash forensics are good enough.
 
@@ -59,10 +60,11 @@ python3 -m venv .venv
   - startup/shutdown and worker lifecycle
   - HTTP request summaries
   - camera open attempts, read failures, and periodic capture heartbeats
-  - periodic process memory samples, including RSS/HWM, FD count, GC counters, and `tracemalloc`
+  - periodic process memory samples, including RSS/HWM, total/native-vs-Python thread counts, FD count, GC counters, and `tracemalloc`
 - Override the destination with `--diagnostic-log-path`, or tune sampling with `--memory-log-interval-sec`.
 - For risky live-camera repros, `--auto-shutdown-sec 60..180` gives the process a bounded lifetime even if the operator forgets to stop it.
 - `camera_opened` diagnostics now include the negotiated width, height, fps, and FOURCC returned by OpenCV so capture-mode mismatches remain visible in logs.
+- `memory_sample` diagnostics now distinguish total thread count from Python thread count, making native thread blow-ups visible without attaching a debugger.
 
 ### Electron viewer
 

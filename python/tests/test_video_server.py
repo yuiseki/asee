@@ -18,6 +18,7 @@ from asee.video_server import (
     LiveCameraDisabledError,
     decode_fourcc_value,
     encode_frame_to_jpeg,
+    resolve_opencv_threads,
 )
 
 
@@ -87,6 +88,7 @@ class TestGodModeVideoServer:
             fps=10.0,
             fourcc="MJPG",
         )
+        assert server._opencv_threads == 1
 
     def test_explicit_capture_profile_override_is_preserved(self) -> None:
         server = GodModeVideoServer(
@@ -105,6 +107,64 @@ class TestGodModeVideoServer:
             height=600,
             fps=12.5,
             fourcc="YUYV",
+        )
+
+    def test_single_camera_does_not_force_opencv_thread_limit(self) -> None:
+        server = GodModeVideoServer(port=188654, device_index=0, allow_live_camera=True)
+
+        assert server._opencv_threads is None
+        assert resolve_opencv_threads(camera_ids=[0]) is None
+
+    def test_explicit_opencv_thread_limit_is_preserved(self) -> None:
+        server = GodModeVideoServer(
+            port=188655,
+            device_index=None,
+            camera_list=[0, 2],
+            allow_live_camera=True,
+            opencv_threads=3,
+        )
+
+        assert server._opencv_threads == 3
+
+    def test_apply_opencv_thread_limit_logs_applied_event(self) -> None:
+        events: list[tuple[str, dict[str, object]]] = []
+
+        class FakeDiagnosticsLogger:
+            @property
+            def path(self) -> str:
+                return "/tmp/fake-asee-diagnostics.jsonl"
+
+            def log_event(self, event: str, **fields: object) -> None:
+                events.append((event, dict(fields)))
+
+            def open_fault_handler_stream(self) -> None:
+                return None
+
+            def close(self) -> None:
+                return None
+
+        server = GodModeVideoServer(
+            port=188656,
+            device_index=None,
+            camera_list=[0, 2],
+            allow_live_camera=True,
+            diagnostics_logger=FakeDiagnosticsLogger(),
+        )
+
+        with (
+            patch("asee.video_server.cv2.getNumThreads", side_effect=[32, 1]),
+            patch("asee.video_server.cv2.setNumThreads") as set_num_threads,
+        ):
+            server._apply_opencv_thread_limit()
+
+        set_num_threads.assert_called_once_with(1)
+        assert events[-1] == (
+            "opencv_thread_limit_applied",
+            {
+                "requested_threads": 1,
+                "previous_threads": 32,
+                "current_threads": 1,
+            },
         )
 
     def test_update_frame(self) -> None:

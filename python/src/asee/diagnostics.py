@@ -49,6 +49,7 @@ class ProcessMetrics:
     rss_kib: int | None
     hwm_kib: int | None
     thread_count: int | None
+    python_thread_count: int
     open_fd_count: int | None
     gc_gen0: int
     gc_gen1: int
@@ -112,6 +113,7 @@ def read_process_metrics(proc_root: Path = Path("/proc/self")) -> ProcessMetrics
         rss_kib=_read_status_kib(status_path, "VmRSS"),
         hwm_kib=_read_status_kib(status_path, "VmHWM"),
         thread_count=_read_status_int(status_path, "Threads"),
+        python_thread_count=threading.active_count(),
         open_fd_count=open_fd_count,
         gc_gen0=gc_gen0,
         gc_gen1=gc_gen1,
@@ -214,6 +216,11 @@ class MemoryMonitor:
             rss_kib=metrics.rss_kib,
             hwm_kib=metrics.hwm_kib,
             thread_count=metrics.thread_count,
+            python_thread_count=metrics.python_thread_count,
+            native_thread_surplus=_delta(
+                metrics.thread_count,
+                metrics.python_thread_count,
+            ),
             open_fd_count=metrics.open_fd_count,
             gc_gen0=metrics.gc_gen0,
             gc_gen1=metrics.gc_gen1,

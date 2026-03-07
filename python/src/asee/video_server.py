@@ -113,6 +113,21 @@ def resolve_capture_settings(
     return resolved
 
 
+def resolve_opencv_threads(
+    *,
+    camera_ids: Sequence[int],
+    opencv_threads: int | None = None,
+) -> int | None:
+    """Resolve a safer OpenCV thread limit for the current camera topology."""
+    if opencv_threads is not None:
+        if int(opencv_threads) <= 0:
+            raise ValueError("OpenCV thread limit must be positive")
+        return int(opencv_threads)
+    if len(camera_ids) > 1:
+        return 1
+    return None
+
+
 def resolve_camera_args(*, device: int, cameras_csv: str) -> tuple[int | None, list[int] | None]:
     """Resolve the CLI camera arguments into server constructor values."""
     if cameras_csv.strip():
@@ -191,6 +206,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="安全な切り分けのため顔検出 worker を起動しない",
     )
+    parser.add_argument(
+        "--opencv-threads",
+        type=int,
+        default=None,
+        help="OpenCV の内部 thread 数。複数カメラ時の既定は 1",
+    )
     return parser
 
 
@@ -228,6 +249,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         height=None if args.height is None else int(args.height),
         fps=None if args.fps is None else float(args.fps),
         fourcc=None if args.fourcc is None else str(args.fourcc),
+        opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
     )
 
@@ -262,6 +284,7 @@ class GodModeVideoServer:
         height: int | None = None,
         fps: float | None = None,
         fourcc: str | None = None,
+        opencv_threads: int | None = None,
         owner_embedding_path: str | Path = OWNER_EMBED_PATH,
         allow_live_camera: bool = False,
         diagnostics_logger: DiagnosticsLogger | None = None,
@@ -280,6 +303,10 @@ class GodModeVideoServer:
             height=height,
             fps=fps,
             fourcc=fourcc,
+        )
+        self._opencv_threads = resolve_opencv_threads(
+            camera_ids=requested_camera_list,
+            opencv_threads=opencv_threads,
         )
         self.port = port
         self.device_index = device_index
@@ -415,11 +442,13 @@ class GodModeVideoServer:
             allow_live_camera=self._allow_live_camera,
             requested_fps=self._capture_fps,
             requested_fourcc=self._capture_fourcc,
+            opencv_threads=self._opencv_threads,
             face_detection_enabled=self._enable_face_detection,
             opencv_version=cv2.__version__,
             python_version=platform.python_version(),
             platform=platform.platform(),
         )
+        self._apply_opencv_thread_limit()
         self._memory_monitor.start()
         if self._auto_shutdown_sec > 0:
             self._start_worker(
@@ -547,6 +576,22 @@ class GodModeVideoServer:
             actual_fourcc=actual_fourcc,
         )
         return cap
+
+    def _apply_opencv_thread_limit(self) -> None:
+        if self._opencv_threads is None:
+            self._diagnostics.log_event(
+                "opencv_thread_limit_skipped",
+                current_threads=cv2.getNumThreads(),
+            )
+            return
+        previous_threads = cv2.getNumThreads()
+        cv2.setNumThreads(self._opencv_threads)
+        self._diagnostics.log_event(
+            "opencv_thread_limit_applied",
+            requested_threads=self._opencv_threads,
+            previous_threads=previous_threads,
+            current_threads=cv2.getNumThreads(),
+        )
 
     def _capture_loop(self) -> None:
         current_device = self.device_index

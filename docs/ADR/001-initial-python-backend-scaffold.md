@@ -64,10 +64,11 @@ Accepted
   - single-camera mode keeps a higher-fidelity default request (`1280x720 @ 30fps MJPG`)
   - multi-camera mode now drops to a lower-risk default request (`640x360 @ 10fps MJPG`)
   - capture-mode overrides are explicit via `--width`, `--height`, `--fps`, and `--fourcc`
+  - multi-camera mode also caps OpenCV's internal worker pool to a single thread unless explicitly overridden
   - detector pressure can be removed with `--disable-face-detect`
   - risky repro runs can be bounded with `--auto-shutdown-sec`
   - persistent JSONL diagnostics and `faulthandler` logs are enabled for CLI launches
-  - periodic memory samples track RSS/HWM, open FDs, GC counters, and `tracemalloc`
+  - periodic memory samples track RSS/HWM, open FDs, total/native-vs-Python thread counts, GC counters, and `tracemalloc`
   - HTTP requests and camera worker lifecycle are logged for crash reconstruction
   - negotiated capture width/height/fps/FOURCC are logged after camera-open to expose driver-level fallback or mismatch
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
@@ -79,6 +80,7 @@ Accepted
 - the Python backend remains testable without cameras, OpenCV, or a desktop session
 - the default operational mode is now intentionally conservative: no-camera unless explicitly unlocked
 - multi-camera live migration is intentionally conservative as well: lower requested resolution and FPS unless the operator overrides them on purpose
+- multi-camera live migration now also reduces OpenCV internal parallelism by default to cut native thread pressure
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals

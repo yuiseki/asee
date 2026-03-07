@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 from asee.diagnostics import (
@@ -62,11 +63,17 @@ def test_read_process_metrics_reads_linux_proc_status(tmp_path: Path) -> None:
     for name in ("0", "1", "2"):
         (fd_dir / name).write_text("", encoding="utf-8")
 
-    metrics = read_process_metrics(proc_root)
+    original_active_count = threading.active_count
+    threading.active_count = lambda: 5
+    try:
+        metrics = read_process_metrics(proc_root)
+    finally:
+        threading.active_count = original_active_count
 
     assert metrics.rss_kib == 1024
     assert metrics.hwm_kib == 2048
     assert metrics.thread_count == 12
+    assert metrics.python_thread_count == 5
     assert metrics.open_fd_count == 3
 
 
@@ -77,6 +84,7 @@ def test_memory_monitor_sample_once_logs_growth_from_baseline() -> None:
                 rss_kib=1024,
                 hwm_kib=2048,
                 thread_count=3,
+                python_thread_count=2,
                 open_fd_count=10,
                 gc_gen0=1,
                 gc_gen1=2,
@@ -88,6 +96,7 @@ def test_memory_monitor_sample_once_logs_growth_from_baseline() -> None:
                 rss_kib=1280,
                 hwm_kib=2304,
                 thread_count=4,
+                python_thread_count=2,
                 open_fd_count=12,
                 gc_gen0=4,
                 gc_gen1=5,
@@ -113,5 +122,7 @@ def test_memory_monitor_sample_once_logs_growth_from_baseline() -> None:
     second = logger.events[1][1]
     assert first["rss_delta_from_baseline_kib"] is None
     assert first["tracemalloc_delta_from_baseline_kib"] is None
+    assert first["native_thread_surplus"] == 1
+    assert second["native_thread_surplus"] == 2
     assert second["rss_delta_from_baseline_kib"] == 256
     assert second["tracemalloc_delta_from_baseline_kib"] == 64

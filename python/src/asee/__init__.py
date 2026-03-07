@@ -45,6 +45,7 @@ from .video_server import (
     main,
     resolve_camera_args,
     resolve_capture_settings,
+    resolve_opencv_threads,
 )
 from .web_shell import (
     build_icon_svg,
@@ -97,5 +98,6 @@ __all__ = [
     "encode_frame_to_jpeg",
     "resolve_camera_args",
     "resolve_capture_settings",
+    "resolve_opencv_threads",
     "run_enrollment",
 ]

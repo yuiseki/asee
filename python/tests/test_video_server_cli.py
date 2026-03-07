@@ -15,6 +15,7 @@ from asee.video_server import (
     main,
     resolve_camera_args,
     resolve_capture_settings,
+    resolve_opencv_threads,
 )
 
 
@@ -67,6 +68,14 @@ def test_resolve_capture_settings_respects_explicit_overrides() -> None:
     )
 
 
+def test_resolve_opencv_threads_uses_safe_multicamera_default() -> None:
+    assert resolve_opencv_threads(camera_ids=[0, 2, 4, 6]) == 1
+
+
+def test_resolve_opencv_threads_respects_explicit_override() -> None:
+    assert resolve_opencv_threads(camera_ids=[0, 2], opencv_threads=3) == 3
+
+
 def test_build_server_from_args_disables_empty_capture_dirs() -> None:
     args = SimpleNamespace(
         port=8765,
@@ -85,6 +94,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         height=None,
         fps=None,
         fourcc=None,
+        opencv_threads=None,
         disable_face_detect=True,
     )
 
@@ -111,6 +121,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         height=None,
         fps=None,
         fourcc=None,
+        opencv_threads=None,
         enable_face_detection=False,
     )
 
@@ -133,6 +144,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         height=None,
         fps=None,
         fourcc=None,
+        opencv_threads=None,
         disable_face_detect=False,
     )
 
@@ -169,6 +181,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         height=None,
         fps=None,
         fourcc=None,
+        opencv_threads=None,
         disable_face_detect=False,
     )
 

@@ -44,6 +44,7 @@ python3 -m venv .venv
 - single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
 - multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
 - `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.
+- multi-camera runs also default OpenCV's internal worker pool to `1`; `--opencv-threads` can override that when a benchmark explicitly needs more.
 - `--disable-face-detect` lets us separate camera/native instability from detector/runtime instability.
 - Every CLI launch now creates a persistent JSONL diagnostics log under `~/.local/state/asee/video-server/` unless `--diagnostic-log-path` is specified.
 - Each run also enables `faulthandler` and writes a sibling `.fault.log`.
@@ -51,10 +52,11 @@ python3 -m venv .venv
   - server start/stop and worker lifecycle
   - HTTP request summaries
   - camera open attempts, read failures, and capture/detection heartbeats
-  - periodic memory samples with RSS/HWM, FD count, GC counters, and `tracemalloc`
+  - periodic memory samples with RSS/HWM, total/native-vs-Python thread counts, FD count, GC counters, and `tracemalloc`
 - Use `--memory-log-interval-sec` to tighten or relax memory sampling.
 - Use `--auto-shutdown-sec` to force a short-lived live-camera session for safer repro attempts.
 - Camera-open diagnostics also record the negotiated width, height, fps, and FOURCC observed after `VideoCapture.set()` so mode negotiation stays auditable.
+- Memory diagnostics now record both total threads and Python threads, which makes native thread surplus explicit in JSONL logs.
 
 ## Initial Modules
 
@@ -106,6 +108,7 @@ python3 -m venv .venv
   - `CaptureSettings`
   - `decode_fourcc_value()`
   - `encode_frame_to_jpeg()`
+  - `resolve_opencv_threads()`
   - `resolve_capture_settings()`
   - no-camera-safe HTTP compatibility server on top of extracted modules
 - `asee.enroll_owner`
