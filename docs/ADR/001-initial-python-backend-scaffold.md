@@ -13,6 +13,7 @@ Accepted
 ## Decision
 
 - `repos/asee` starts as a Python package, not an Electron app
+- this initial Python package now lives under `repos/asee/python`
 - the first extracted slice is limited to pure backend logic:
   - camera layout helpers
   - biometric status aggregation
@@ -39,5 +40,5 @@ Accepted
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - the eventual split becomes:
-  - Python backend in `asee`
+  - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer
