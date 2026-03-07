@@ -1,7 +1,13 @@
 """Agentic seeing backend primitives."""
 
 from .biometric_status import BiometricStatusTracker
-from .camera_layout import extend_with_optional_camera, parse_v4l2_devices
+from .camera_layout import (
+    build_camera_csv,
+    detect_v4l2_devices,
+    extend_with_optional_camera,
+    parse_camera_csv,
+    parse_v4l2_devices,
+)
 from .capture_writer import FaceCaptureWriter
 from .detection_runtime import YunetDetectionPipeline, to_square
 from .dnn_policy import (
@@ -37,6 +43,8 @@ __all__ = [
     "GodModeVideoServer",
     "build_arg_parser",
     "build_server_from_args",
+    "build_camera_csv",
+    "detect_v4l2_devices",
     "keep_largest_owner",
     "main",
     "OWNER_COSINE_THRESHOLD",
@@ -51,6 +59,7 @@ __all__ = [
     "GodModeOverlay",
     "InMemoryHttpRuntime",
     "OverlayTextState",
+    "parse_camera_csv",
     "parse_v4l2_devices",
     "SeeingServerRuntime",
     "should_use_opencl_dnn",

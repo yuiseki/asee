@@ -32,8 +32,10 @@ python3 -m venv .venv
 ## Initial Modules
 
 - `asee.camera_layout`
+  - `parse_camera_csv()`
   - `parse_v4l2_devices()`
   - `extend_with_optional_camera()`
+  - `detect_v4l2_devices()`
   - `build_camera_csv()`
 - `asee.biometric_status`
   - `BiometricStatusTracker`
@@ -85,4 +87,5 @@ python3 -m venv .venv
 ## Notes
 
 - `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now act as compatibility wrappers over `asee`
+- `tmp/GOD_MODE/god_mode_camera_layout.py` can also act as a compatibility wrapper over `asee.camera_layout`
 - the future Electron UI belongs beside this backend, but not inside the CV/runtime core
