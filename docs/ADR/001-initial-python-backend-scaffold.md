@@ -6,10 +6,10 @@ Accepted
 
 ## Context
 
-- `tmp/GOD_MODE` mixes camera capture, face recognition, HTTP serving, Chromium/PWA display, VOICEVOX, and shell orchestration
+- the legacy GOD MODE runtime, now archived under `tmp/_trash/GOD_MODE`, mixes camera capture, face recognition, HTTP serving, Chromium/PWA display, VOICEVOX, and shell orchestration
 - the future replacement should use Electron for the visual surface, but image processing remains Python-first
 - `god_mode_predictor.py` is currently dead code and should not shape the initial repository boundary
-- the legacy `tmp/GOD_MODE/god_mode.sh` flow is replaced by `repos/asee/tmp_main.sh`, while `repos/asee/electron` becomes the official viewer surface
+- the legacy `tmp/_trash/GOD_MODE/god_mode.sh` flow is replaced by `repos/asee/tmp_main.sh`, while `repos/asee/electron` becomes the official viewer surface
 
 ## Decision
 
@@ -86,7 +86,7 @@ Accepted
   - the viewer supervisor also reapplies the default left-bottom KWin layout after each launch so respawned windows keep the expected monitor slot
   - viewer GPU experiments are now explicit env-driven inputs to the launcher, including Chromium GPU backend flags (`ASEE_VIEWER_USE_GL`, `ASEE_VIEWER_USE_ANGLE`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX`, `ASEE_VIEWER_EXTRA_ARGS`) and PRIME offload hints (`__NV_PRIME_RENDER_OFFLOAD`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER`, `__GLX_VENDOR_LIBRARY_NAME`, `DRI_PRIME`)
   - each viewer attempt logs both the effective GPU env values and the resolved Electron args into the per-port viewer log so desktop freezes can be correlated with the exact launch mode
-- OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
+- OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
 
@@ -99,14 +99,14 @@ Accepted
 - multi-camera live migration now also reduces OpenCV internal parallelism by default to cut native thread pressure
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
-- overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals
+- overlay runtime code can now be rebuilt on top of `asee` primitives instead of archived `tmp/_trash/GOD_MODE` internals
 - YuNet detector orchestration can now be composed in `asee` without dragging the full overlay class across at once
-- `tmp/GOD_MODE` can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
-- `tmp/GOD_MODE` can also delegate state management and HTTP contract glue to `asee.server_runtime`
-- `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
+- the archived `tmp/_trash/GOD_MODE` runtime can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
+- the archived `tmp/_trash/GOD_MODE` runtime can also delegate state management and HTTP contract glue to `asee.server_runtime`
+- `tmp/_trash/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
 - compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
 - `god_mode_enroll_owner.py` can also move behind an `asee.enroll_owner` compatibility facade
-- `repos/asee/tmp_main.sh` is now the canonical replacement for the legacy `tmp/GOD_MODE/god_mode.sh` operator flow
+- `repos/asee/tmp_main.sh` is now the canonical replacement for the legacy `tmp/_trash/GOD_MODE/god_mode.sh` operator flow
 - Electron is now the official viewer route for migrated runs, not an auxiliary read-only shell
 - bounded auto-shutdown runs no longer require manual pid file cleanup before the next `start`
 - crash reproduction now leaves a persistent forensic trail even when automatic tests cannot cover the failure mode

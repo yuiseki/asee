@@ -5,7 +5,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 ## Layout
 
 - `python/`
-  - extracted Python backend from `tmp/GOD_MODE`
+- extracted Python backend from the legacy GOD MODE runtime, now archived under `tmp/_trash/GOD_MODE`
   - camera layout, biometric status, HTTP shell contract, DNN backend policy
   - face tracking and capture persistence primitives
   - OWNER policy and YuNet detection pipeline
@@ -109,13 +109,13 @@ npm run demo
 
 ## Migration Notes
 
-- `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now be thin compatibility facades over `asee`
+- `tmp/_trash/GOD_MODE/god_mode_overlay.py` and `tmp/_trash/GOD_MODE/god_mode_video_server.py` can now be thin compatibility facades over `asee`
 - `god_mode_predictor.py` stays excluded as dead code
-- `repos/asee/tmp_main.sh` is now the canonical operator entrypoint that replaced the legacy `tmp/GOD_MODE/god_mode.sh` flow
+- `repos/asee/tmp_main.sh` is now the canonical operator entrypoint that replaced the legacy `tmp/_trash/GOD_MODE/god_mode.sh` flow
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
 - `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`
-- `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/GOD_MODE` compatibility wrappers
+- `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/_trash/GOD_MODE` compatibility wrappers
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
 - `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less, single-camera, and safety-limited multi-camera server behavior
 - `python/asee.enroll_owner` is now the migration target for OWNER enrollment

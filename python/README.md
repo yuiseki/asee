@@ -5,7 +5,7 @@ Python backend for camera recognition and biometric status inside `repos/asee`.
 ## Current Scope
 
 - Python package scaffold with `pytest`, `mypy`, and `ruff`
-- extracted pure helpers from `tmp/GOD_MODE`
+- extracted pure helpers from the legacy GOD MODE runtime, now archived under `tmp/_trash/GOD_MODE`
   - camera layout parsing / optional camera selection
   - biometric status aggregation independent from HTTP / OpenCV runtime
   - web shell asset builders for the future Electron viewer
@@ -145,18 +145,18 @@ python3 -m venv .venv
 ## Planned Next Slice
 
 - extract more of the Python backend contract from `god_mode_video_server.py`
-- replace direct `tmp/GOD_MODE` detector/classifier orchestration with `asee.overlay.GodModeOverlay`
-- add a compatibility runtime adapter so `tmp/GOD_MODE` can call `asee` modules as the new source of truth
-- connect `tmp/GOD_MODE/god_mode_video_server.py` to `asee.server_runtime.SeeingServerRuntime`
-- move more of `tmp/GOD_MODE/god_mode_video_server.py` onto `asee.video_server.GodModeVideoServer`
+- replace direct detector/classifier orchestration from `tmp/_trash/GOD_MODE` with `asee.overlay.GodModeOverlay`
+- add a compatibility runtime adapter so `tmp/_trash/GOD_MODE` can call `asee` modules as the new source of truth
+- connect `tmp/_trash/GOD_MODE/god_mode_video_server.py` to `asee.server_runtime.SeeingServerRuntime`
+- move more of `tmp/_trash/GOD_MODE/god_mode_video_server.py` onto `asee.video_server.GodModeVideoServer`
 - add compatibility adapters around the extracted Flask app factory
 - keep image processing and biometric inference in Python
 - add an Electron viewer separately instead of pushing CV logic into TypeScript
 
 ## Notes
 
-- `tmp/GOD_MODE/god_mode_overlay.py` and `tmp/GOD_MODE/god_mode_video_server.py` can now act as compatibility wrappers over `asee`
-- `tmp/GOD_MODE/god_mode_camera_layout.py` can also act as a compatibility wrapper over `asee.camera_layout`
-- `tmp/GOD_MODE/god_mode_enroll_owner.py` can also act as a compatibility wrapper over `asee.enroll_owner`
+- `tmp/_trash/GOD_MODE/god_mode_overlay.py` and `tmp/_trash/GOD_MODE/god_mode_video_server.py` can now act as compatibility wrappers over `asee`
+- `tmp/_trash/GOD_MODE/god_mode_camera_layout.py` can also act as a compatibility wrapper over `asee.camera_layout`
+- `tmp/_trash/GOD_MODE/god_mode_enroll_owner.py` can also act as a compatibility wrapper over `asee.enroll_owner`
 - the future Electron UI belongs beside this backend, but not inside the CV/runtime core
 - `repos/asee/tmp_main.sh` now owns the temporary GOD MODE-style start/stop/layout lifecycle, while `god_mode_predictor.py` remains intentionally outside the repo boundary
