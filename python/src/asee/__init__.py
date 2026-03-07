@@ -14,6 +14,7 @@ from .overlay import GodModeOverlay
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
+from .video_server import GodModeVideoServer, encode_frame_to_jpeg
 from .web_shell import (
     build_icon_svg,
     build_service_worker_script,
@@ -26,6 +27,7 @@ __all__ = [
     "FaceCaptureWriter",
     "FaceTracker",
     "IMPORTANT_OPENCL_WARNING_NOTE",
+    "GodModeVideoServer",
     "keep_largest_owner",
     "OWNER_COSINE_THRESHOLD",
     "OWNER_TOPK",
@@ -43,4 +45,5 @@ __all__ = [
     "SeeingServerRuntime",
     "should_use_opencl_dnn",
     "to_square",
+    "encode_frame_to_jpeg",
 ]

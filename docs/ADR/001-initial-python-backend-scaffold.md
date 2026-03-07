@@ -49,6 +49,11 @@ Accepted
   - owner embedding loading
   - biometric status aggregation
   - snapshot/stream contract glue for the extracted Flask app
+- the eighth extracted slice rebuilds the GOD MODE compatibility server inside `asee.video_server`
+  - `GodModeVideoServer`
+  - `encode_frame_to_jpeg()`
+  - camera-less and single-camera HTTP compatibility behavior
+  - MJPG camera-open policy and frame normalization helpers
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -62,6 +67,7 @@ Accepted
 - YuNet detector orchestration can now be composed in `asee` without dragging the full overlay class across at once
 - `tmp/GOD_MODE` can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
 - `tmp/GOD_MODE` can also delegate state management and HTTP contract glue to `asee.server_runtime`
+- `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer
