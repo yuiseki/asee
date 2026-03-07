@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/asee.egg-info/PKG-INFO
+src/asee.egg-info/SOURCES.txt
+src/asee.egg-info/dependency_links.txt
+src/asee.egg-info/requires.txt
+src/asee.egg-info/top_level.txt
+tests/test_biometric_status.py
+tests/test_camera_layout.py
+tests/test_web_shell.py

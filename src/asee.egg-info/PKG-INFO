@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: asee
+Version: 0.1.0
+Summary: Agentic seeing backend for camera recognition and biometric status
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.5; extra == "dev"
+Requires-Dist: mypy>=1.11.2; extra == "dev"
+Requires-Dist: ruff>=0.11.0; extra == "dev"
+
+asee
+
+
+Agentic Seeing
+
+A module specialized in video recognition that constitutes the AI Agent.
