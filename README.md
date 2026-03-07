@@ -30,6 +30,7 @@ python3 -m venv .venv
 .venv/bin/pytest
 .venv/bin/mypy src
 .venv/bin/ruff check
+.venv/bin/python -m asee.video_server --port 8765 --device 0
 ```
 
 ### Electron viewer

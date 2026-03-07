@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import threading
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -33,6 +35,75 @@ def encode_frame_to_jpeg(frame: FrameArray, quality: int = 70) -> bytes:
     if not ok:
         raise RuntimeError("JPEG encode failed")
     return buffer.tobytes()
+
+
+def resolve_camera_args(*, device: int, cameras_csv: str) -> tuple[int, list[int] | None]:
+    """Resolve the CLI camera arguments into server constructor values."""
+    if cameras_csv.strip():
+        camera_list = [int(chunk.strip()) for chunk in cameras_csv.split(",") if chunk.strip()]
+        return camera_list[0], camera_list
+    return device, None
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the CLI parser for the extracted video server."""
+    parser = argparse.ArgumentParser(description="GOD MODE Video Server")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument(
+        "--cameras",
+        default="",
+        help="カンマ区切りのデバイス番号リスト (例: 0,2). 指定すると複数カメラを同時配信",
+    )
+    parser.add_argument("--cam-interval", type=int, default=60)
+    parser.add_argument("--title", default="GOD MODE", help="ウィンドウタイトル")
+    parser.add_argument(
+        "--face-capture-dir",
+        default="/tmp/god-mode-face-segments",
+        help="OWNER 顔クロップの保存先ディレクトリ（空文字で無効化）",
+    )
+    parser.add_argument(
+        "--face-capture-min-interval",
+        type=float,
+        default=1.0,
+        help="顔クロップ保存の最小間隔（秒）。デフォルト: 1.0",
+    )
+    parser.add_argument(
+        "--subject-capture-dir",
+        default="/tmp/god-mode-subject-segments",
+        help="SUBJECT 顔クロップの保存先ディレクトリ（閾値チューニング用 true negative データ）",
+    )
+    return parser
+
+
+def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
+    """Build a server instance from parsed CLI arguments."""
+    device_index, camera_list = resolve_camera_args(
+        device=int(args.device),
+        cameras_csv=str(args.cameras),
+    )
+    return GodModeVideoServer(
+        port=int(args.port),
+        device_index=device_index,
+        camera_list=camera_list,
+        cam_interval=int(args.cam_interval),
+        title=str(args.title),
+        face_capture_dir=str(args.face_capture_dir) or None,
+        face_capture_min_interval=float(args.face_capture_min_interval),
+        subject_capture_dir=str(args.subject_capture_dir) or None,
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entrypoint for the extracted video server."""
+    logging.basicConfig(level=logging.INFO)
+    args = build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    server = build_server_from_args(args)
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        server.stop()
+    return 0
 
 
 class GodModeVideoServer:
@@ -358,7 +429,6 @@ class GodModeVideoServer:
                 b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
             )
             time.sleep(1 / 15)
-
     def _generate_mjpeg_device(self, device: int) -> Any:
         while not self._stop_event.is_set():
             frame = self.runtime.get_frame(device)
@@ -390,3 +460,7 @@ class GodModeVideoServer:
                 b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
             )
             time.sleep(1 / 15)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
