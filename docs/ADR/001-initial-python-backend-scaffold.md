@@ -43,6 +43,12 @@ Accepted
   - overlay drawing
   - detector/classifier orchestration
   - face-capture writer integration
+- the seventh extracted slice rebuilds the viewer/server state holder inside `asee.server_runtime`
+  - `SeeingServerRuntime`
+  - overlay text state propagation
+  - owner embedding loading
+  - biometric status aggregation
+  - snapshot/stream contract glue for the extracted Flask app
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -55,6 +61,7 @@ Accepted
 - overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals
 - YuNet detector orchestration can now be composed in `asee` without dragging the full overlay class across at once
 - `tmp/GOD_MODE` can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
+- `tmp/GOD_MODE` can also delegate state management and HTTP contract glue to `asee.server_runtime`
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer

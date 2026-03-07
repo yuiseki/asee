@@ -12,6 +12,7 @@ from .dnn_policy import (
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
 from .overlay import GodModeOverlay
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
+from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
 from .web_shell import (
     build_icon_svg,
@@ -39,6 +40,7 @@ __all__ = [
     "InMemoryHttpRuntime",
     "OverlayTextState",
     "parse_v4l2_devices",
+    "SeeingServerRuntime",
     "should_use_opencl_dnn",
     "to_square",
 ]
