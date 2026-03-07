@@ -17,13 +17,25 @@ Accepted
   - camera layout helpers
   - biometric status aggregation
   - static web shell asset builders
-- OpenCV-heavy capture / overlay / HTTP runtime stays in `tmp/GOD_MODE` until the contract is better isolated
+- the second extracted slice adds a Flask app factory for the non-OpenCV HTTP shell contract:
+  - `/`
+  - `/manifest.webmanifest`
+  - `/service-worker.js`
+  - `/icon.svg`
+  - `/update`
+  - `/cameras`
+  - `/snapshot`
+  - `/overlay_text`
+  - `/status`
+  - `/biometric_status`
+- OpenCV-heavy capture / overlay / MJPEG generation stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
 ## Consequences
 
 - migration can begin with low-risk contract extraction and unit tests
 - the Python backend remains testable without cameras, OpenCV, or a desktop session
+- the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - the eventual split becomes:
   - Python backend in `asee`
   - Electron viewer as a separate surface layer
