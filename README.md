@@ -31,8 +31,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 ./tmp_main.sh stop --port 8765
 ```
 
-- `tmp_main.sh` is now the canonical GOD MODE-style launcher for `repos/asee`.
+- `tmp_main.sh` is now the canonical temporary operator launcher for `repos/asee`.
 - It starts `python -m asee.video_server` and the official `electron/` viewer together.
+- The official Electron window caption is `ASEE Viewer`.
 - `stop` now terminates backend/viewer by process group, tolerates stale pid files, and always removes `/tmp/asee_tmp_main_<port>.pids`.
 - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` are accepted as no-op compatibility shims while callers migrate.
 

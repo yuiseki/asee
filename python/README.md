@@ -29,6 +29,7 @@ cd ..
 ```
 
 - `../tmp_main.sh` is now the temporary canonical launcher when the backend should run together with the official Electron viewer.
+- the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
 - legacy `god_mode.sh`-style flags like `--chromium` are still accepted as compatibility no-ops by `tmp_main.sh`.
 

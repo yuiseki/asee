@@ -37,7 +37,7 @@ COMMAND="${1:-help}"
 shift || true
 
 refresh_port_paths() {
-  WINDOW_TITLE="GOD MODE ${PORT}"
+  WINDOW_TITLE="ASEE Viewer"
   SERVER_URL="http://127.0.0.1:${PORT}"
   PID_FILE="/tmp/asee_tmp_main_${PORT}.pids"
   SERVER_LOG="/tmp/asee_tmp_main_server_${PORT}.log"

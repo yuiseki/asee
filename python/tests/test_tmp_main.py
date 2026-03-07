@@ -65,8 +65,8 @@ printf '{"running":true}\\n'
     )
     _write_executable(
         bin_dir / "wmctrl",
-        f"""#!/usr/bin/env bash
-printf '0x001  0 test GOD MODE {port}\\n'
+        """#!/usr/bin/env bash
+printf '0x001  0 test ASEE Viewer\\n'
 """,
     )
     _write_executable(
@@ -133,7 +133,7 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
     npm_invocation = _find_invocation(invocations, "npm")
     assert npm_invocation["argv"] == ["run", "start"]
     assert npm_invocation["backend_url"] == "http://127.0.0.1:19140"
-    assert npm_invocation["viewer_title"] == "GOD MODE 19140"
+    assert npm_invocation["viewer_title"] == "ASEE Viewer"
 
 
 def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
@@ -171,7 +171,7 @@ def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
 
     npm_invocation = _find_invocation(invocations, "npm")
     assert npm_invocation["argv"] == ["run", "start"]
-    assert npm_invocation["viewer_title"] == "GOD MODE 19142"
+    assert npm_invocation["viewer_title"] == "ASEE Viewer"
 
 
 def test_stop_removes_pid_file_and_terminates_recorded_processes(tmp_path: Path) -> None:
