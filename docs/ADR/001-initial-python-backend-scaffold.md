@@ -37,7 +37,13 @@ Accepted
 - the fifth extracted slice adds pure detection orchestration from `god_mode_overlay.py`
   - OWNER selection policy
   - YuNet detection normalization and square-box expansion
-- OpenCV-heavy capture / overlay / MJPEG generation stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
+- the sixth extracted slice rebuilds the overlay runtime itself inside `asee.overlay`
+  - `GodModeOverlay`
+  - DNN backend selection
+  - overlay drawing
+  - detector/classifier orchestration
+  - face-capture writer integration
+- OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
 ## Consequences
@@ -48,6 +54,7 @@ Accepted
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals
 - YuNet detector orchestration can now be composed in `asee` without dragging the full overlay class across at once
+- `tmp/GOD_MODE` can now migrate toward a thin runtime adapter that delegates overlay behavior to `asee.overlay`
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer

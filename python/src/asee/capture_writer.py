@@ -15,7 +15,7 @@ type ImageWriter = Callable[[Path, Any], bool]
 
 
 def _default_write_image(path: Path, image: Any) -> bool:
-    import cv2  # type: ignore[import-not-found]
+    import cv2
 
     return bool(cv2.imwrite(str(path), image, [cv2.IMWRITE_JPEG_QUALITY, 90]))
 

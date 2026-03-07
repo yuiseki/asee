@@ -9,6 +9,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - camera layout, biometric status, HTTP shell contract, DNN backend policy
   - face tracking and capture persistence primitives
   - OWNER policy and YuNet detection pipeline
+  - rebuilt `GodModeOverlay` runtime on top of extracted primitives
 - `electron/`
   - Electron + React + TypeScript viewer
   - already reads the existing GOD MODE HTTP contract through a preload bridge
@@ -46,3 +47,4 @@ npm run demo
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
 - `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`
+- `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/GOD_MODE` compatibility wrappers

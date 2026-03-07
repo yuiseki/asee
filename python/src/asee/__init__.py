@@ -10,6 +10,7 @@ from .dnn_policy import (
     should_use_opencl_dnn,
 )
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
+from .overlay import GodModeOverlay
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .tracking import FaceBox, FaceTracker
 from .web_shell import (
@@ -34,6 +35,7 @@ __all__ = [
     "YunetDetectionPipeline",
     "emit_opencl_nonfatal_warning_note",
     "extend_with_optional_camera",
+    "GodModeOverlay",
     "InMemoryHttpRuntime",
     "OverlayTextState",
     "parse_v4l2_devices",

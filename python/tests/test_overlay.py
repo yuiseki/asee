@@ -1,0 +1,151 @@
+"""Unit tests for the extracted GOD MODE overlay runtime."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+
+from asee.overlay import GodModeOverlay
+from asee.tracking import FaceBox
+
+
+@pytest.fixture
+def overlay() -> GodModeOverlay:
+    return GodModeOverlay(width=1280, height=720)
+
+
+@pytest.fixture
+def blank_frame() -> np.ndarray:
+    return np.zeros((720, 1280, 3), dtype=np.uint8)
+
+
+def make_fake_detection(x: int, y: int, w: int, h: int, conf: float = 0.9) -> np.ndarray:
+    row = np.zeros(15, dtype=np.float32)
+    row[0], row[1], row[2], row[3], row[14] = x, y, w, h, conf
+    return row
+
+
+def test_draw_returns_numpy_array(overlay: GodModeOverlay, blank_frame: np.ndarray):
+    result = overlay.draw(blank_frame, frame_count=0)
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (720, 1280, 3)
+
+
+def test_draw_modifies_frame(overlay: GodModeOverlay, blank_frame: np.ndarray):
+    result = overlay.draw(blank_frame.copy(), frame_count=0)
+
+    assert not np.array_equal(result, blank_frame)
+
+
+def test_setters_update_runtime_state(overlay: GodModeOverlay):
+    overlay.set_caption('室内。デスクに着席中。')
+    overlay.set_prediction('次の20分: 飲料摂取 72%')
+
+    assert overlay.caption == '室内。デスクに着席中。'
+    assert overlay.prediction == '次の20分: 飲料摂取 72%'
+
+
+def test_draw_with_owner_face_box_differs_from_subject(
+    overlay: GodModeOverlay,
+    blank_frame: np.ndarray,
+):
+    owner = overlay.draw(
+        blank_frame.copy(),
+        frame_count=0,
+        face_boxes=[FaceBox(x=100, y=80, w=120, h=140, label='OWNER')],
+        smooth=False,
+    )
+    subject = overlay.draw(
+        blank_frame.copy(),
+        frame_count=0,
+        face_boxes=[FaceBox(x=100, y=80, w=120, h=140, label='SUBJECT')],
+        smooth=False,
+    )
+
+    assert not np.array_equal(owner, subject)
+
+
+def test_detect_faces_returns_empty_list_when_no_detectors(
+    overlay: GodModeOverlay,
+    blank_frame: np.ndarray,
+):
+    overlay._yunet_pipeline = None
+    overlay._haar = None
+
+    assert overlay.detect_faces(blank_frame) == []
+
+
+def test_owner_embedding_is_none_by_default(overlay: GodModeOverlay):
+    assert overlay._owner_embeddings is None
+
+
+def test_set_owner_embedding_accepts_1d_and_2d_arrays(overlay: GodModeOverlay):
+    overlay.set_owner_embedding(np.zeros(128, dtype=np.float32))
+    assert overlay._owner_embeddings is not None
+    assert overlay._owner_embeddings.shape == (1, 128)
+
+    overlay.set_owner_embedding(np.zeros((2, 128), dtype=np.float32))
+    assert overlay._owner_embeddings.shape == (2, 128)
+
+
+def test_detect_yunet_filters_tiny_faces(overlay: GodModeOverlay, blank_frame: np.ndarray):
+    overlay._detector = MagicMock()
+    overlay._detector.detect.return_value = (
+        None,
+        np.array([make_fake_detection(100, 100, 10, 10)]),
+    )
+    overlay._yunet_pipeline = None
+
+    with patch.object(overlay, '_classify_label', return_value=('SUBJECT', 0.0)):
+        result = overlay._detect_yunet(blank_frame)
+
+    assert result == []
+
+
+def test_detect_yunet_keeps_face_at_min_size(overlay: GodModeOverlay, blank_frame: np.ndarray):
+    overlay._detector = MagicMock()
+    overlay._detector.detect.return_value = (
+        None,
+        np.array([make_fake_detection(100, 100, 20, 20)]),
+    )
+    overlay._yunet_pipeline = None
+
+    with patch.object(overlay, '_classify_label', return_value=('OWNER', 0.7)):
+        result = overlay._detect_yunet(blank_frame)
+
+    assert len(result) == 1
+    assert result[0].label == 'OWNER'
+
+
+def test_detect_faces_keeps_only_largest_owner(overlay: GodModeOverlay, blank_frame: np.ndarray):
+    overlay._detector = MagicMock()
+    overlay._detector.detect.return_value = (
+        None,
+        np.array(
+            [
+                make_fake_detection(10, 10, 80, 80),
+                make_fake_detection(200, 200, 120, 120),
+                make_fake_detection(600, 100, 90, 90),
+            ]
+        ),
+    )
+    overlay._yunet_pipeline = None
+    labels = iter([('OWNER', 0.7), ('OWNER', 0.72), ('SUBJECT', 0.5)])
+
+    with patch.object(overlay, '_classify_label', side_effect=lambda _frame, _fb: next(labels)):
+        result = overlay.detect_faces(blank_frame)
+
+    owners = [face for face in result if face.label == 'OWNER']
+    subjects = [face for face in result if face.label == 'SUBJECT']
+    assert len(owners) == 1
+    assert owners[0].w >= 120
+    assert len(subjects) == 1
+
+
+def test_face_capture_writer_enabled_with_dir(tmp_path):
+    overlay = GodModeOverlay(width=320, height=240, face_capture_dir=str(tmp_path))
+
+    assert overlay._face_capture_writer is not None
