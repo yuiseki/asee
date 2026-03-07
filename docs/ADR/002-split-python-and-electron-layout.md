@@ -17,6 +17,7 @@ Accepted
 - keep repository-level ADRs in `repos/asee/docs/ADR`
 - reuse proven Electron launch patterns from `acaption` and `asec`
 - define the first backend bridge as a read-only preload client for the existing GOD MODE HTTP contract
+- launch the first viewer surface as frameless so the desktop shell does not waste vertical space on title bars
 
 ## Consequences
 
@@ -24,3 +25,4 @@ Accepted
 - future CV/runtime extraction can continue under `python/` while UI work lands under `electron/`
 - the repository structure now matches the intended long-term architecture before heavier migration work begins
 - the Electron viewer can progress immediately against the existing backend before the runtime migration is complete
+- the first viewer surface now behaves more like an overlay/panel than a traditional desktop app window

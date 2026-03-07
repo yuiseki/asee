@@ -17,6 +17,7 @@ npm run demo
 - no image processing logic
 - consumes backend outputs from `../python` through a preload bridge
 - currently supports the existing `tmp/GOD_MODE` HTTP contract as a read-only viewer
+- launches as a frameless desktop surface so KDE title bars do not eat into the camera grid
 
 ## Current Backend Contract
 

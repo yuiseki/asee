@@ -2,20 +2,15 @@ import { app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
 
 import { parseRuntimeOptions } from './runtime-options';
+import { buildMainWindowOptions } from './window-options';
 
 function createMainWindow(title: string): BrowserWindow {
-  const window = new BrowserWindow({
-    width: 1600,
-    height: 900,
-    backgroundColor: '#07110d',
-    title,
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+  const window = new BrowserWindow(
+    buildMainWindowOptions({
+      title,
+      preloadPath: join(__dirname, '../preload/index.js'),
+    }),
+  );
 
   const rendererUrl = process.env.VITE_DEV_SERVER_URL;
   if (rendererUrl) {
