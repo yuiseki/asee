@@ -51,6 +51,16 @@ def test_jsonl_diagnostics_logger_writes_structured_events(tmp_path: Path) -> No
     assert Path(fault_stream.name).name == "video-server.fault.log"
 
 
+def test_jsonl_diagnostics_logger_ignores_events_after_close(tmp_path: Path) -> None:
+    log_path = tmp_path / "video-server.jsonl"
+    logger = JsonlDiagnosticsLogger(log_path, clock=lambda: 123.456)
+
+    logger.close()
+    logger.log_event("server_stop_requested")
+
+    assert log_path.read_text(encoding="utf-8") == ""
+
+
 def test_read_process_metrics_reads_linux_proc_status(tmp_path: Path) -> None:
     proc_root = tmp_path / "proc"
     proc_root.mkdir()

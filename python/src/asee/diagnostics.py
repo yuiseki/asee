@@ -138,12 +138,15 @@ class JsonlDiagnosticsLogger:
         self._lock = threading.Lock()
         self._stream = self._path.open("a", encoding="utf-8", buffering=1)
         self._fault_stream: TextIO | None = None
+        self._closed = False
 
     @property
     def path(self) -> Path | None:
         return self._path
 
     def log_event(self, event: str, **fields: Any) -> None:
+        if self._closed or self._stream.closed:
+            return
         record = {
             "ts": self._clock(),
             "event": event,
@@ -155,17 +158,23 @@ class JsonlDiagnosticsLogger:
             self._stream.flush()
 
     def open_fault_handler_stream(self) -> TextIO | None:
+        if self._closed:
+            return None
         if self._fault_stream is None:
             fault_path = self._path.with_suffix(".fault.log")
             self._fault_stream = fault_path.open("a", encoding="utf-8", buffering=1)
         return self._fault_stream
 
     def close(self) -> None:
+        if self._closed:
+            return
         with self._lock:
             if self._fault_stream is not None:
                 self._fault_stream.close()
                 self._fault_stream = None
-            self._stream.close()
+            if not self._stream.closed:
+                self._stream.close()
+            self._closed = True
 
 
 class MemoryMonitor:

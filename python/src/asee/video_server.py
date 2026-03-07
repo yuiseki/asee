@@ -27,6 +27,7 @@ from .diagnostics import (
     build_default_diagnostics_log_path,
 )
 from .http_app import create_http_app
+from .model_assets import resolve_model_asset_path
 from .overlay import GodModeOverlay
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
@@ -34,7 +35,7 @@ from .tracking import FaceBox, FaceTracker
 logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
-OWNER_EMBED_PATH = MODELS_DIR / "owner_embedding.npy"
+OWNER_EMBED_PATH = resolve_model_asset_path("owner_embedding.npy")
 
 type FrameArray = npt.NDArray[np.uint8]
 

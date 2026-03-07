@@ -15,11 +15,12 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 
+from .model_assets import resolve_model_asset_path
 from .overlay import GodModeOverlay
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_OWNER_EMBED_PATH = Path(__file__).resolve().parent / "models" / "owner_embedding.npy"
+DEFAULT_OWNER_EMBED_PATH = resolve_model_asset_path("owner_embedding.npy")
 
 type FrameArray = npt.NDArray[np.uint8]
 type EmbeddingArray = npt.NDArray[np.float32]

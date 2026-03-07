@@ -17,14 +17,15 @@ from .dnn_policy import (
     emit_opencl_nonfatal_warning_note,
     should_use_opencl_dnn,
 )
+from .model_assets import resolve_model_asset_path
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .tracking import FaceBox, FaceTracker
 
 logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
-DEFAULT_YUNET_PATH = str(MODELS_DIR / "face_detection_yunet_2023mar.onnx")
-DEFAULT_SFACE_PATH = str(MODELS_DIR / "face_recognition_sface_2021dec.onnx")
+DEFAULT_YUNET_PATH = str(resolve_model_asset_path("face_detection_yunet_2023mar.onnx"))
+DEFAULT_SFACE_PATH = str(resolve_model_asset_path("face_recognition_sface_2021dec.onnx"))
 
 COLOR_CYAN = (255, 200, 0)
 COLOR_WHITE = (255, 255, 255)

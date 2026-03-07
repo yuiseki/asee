@@ -30,6 +30,11 @@ from .enroll_owner import (
     run_enrollment,
 )
 from .http_app import InMemoryHttpRuntime, OverlayTextState, create_http_app
+from .model_assets import (
+    candidate_model_asset_paths,
+    discover_legacy_models_dir,
+    resolve_model_asset_path,
+)
 from .overlay import GodModeOverlay
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
 from .server_runtime import SeeingServerRuntime
@@ -70,9 +75,11 @@ __all__ = [
     "build_server_from_args",
     "build_camera_csv",
     "build_default_diagnostics_log_path",
+    "candidate_model_asset_paths",
     "detect_v4l2_devices",
     "decode_fourcc_value",
     "DEFAULT_OWNER_EMBED_PATH",
+    "discover_legacy_models_dir",
     "EnrollmentError",
     "keep_largest_owner",
     "main",
@@ -92,6 +99,7 @@ __all__ = [
     "parse_camera_csv",
     "parse_v4l2_devices",
     "read_process_metrics",
+    "resolve_model_asset_path",
     "SeeingServerRuntime",
     "should_use_opencl_dnn",
     "to_square",

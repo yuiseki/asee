@@ -71,6 +71,7 @@ Accepted
   - periodic memory samples track RSS/HWM, open FDs, total/native-vs-Python thread counts, GC counters, and `tracemalloc`
   - HTTP requests and camera worker lifecycle are logged for crash reconstruction
   - negotiated capture width/height/fps/FOURCC are logged after camera-open to expose driver-level fallback or mismatch
+  - until model assets are migrated physically, the extracted runtime reuses `tmp/GOD_MODE/models/` as the fallback source of YuNet, SFace, and owner embeddings
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 

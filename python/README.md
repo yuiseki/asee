@@ -45,6 +45,7 @@ python3 -m venv .venv
 - multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
 - `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.
 - multi-camera runs also default OpenCV's internal worker pool to `1`; `--opencv-threads` can override that when a benchmark explicitly needs more.
+- if `python/src/asee/models/` does not contain YuNet, SFace, or `owner_embedding.npy`, `asee` falls back to `tmp/GOD_MODE/models/` so the extracted runtime can reuse the proven assets.
 - `--disable-face-detect` lets us separate camera/native instability from detector/runtime instability.
 - Every CLI launch now creates a persistent JSONL diagnostics log under `~/.local/state/asee/video-server/` unless `--diagnostic-log-path` is specified.
 - Each run also enables `faulthandler` and writes a sibling `.fault.log`.
