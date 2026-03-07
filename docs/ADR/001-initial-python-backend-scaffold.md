@@ -83,6 +83,7 @@ Accepted
   - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` remain accepted as compatibility no-ops
   - `stop` cleans up backend/viewer by process group, tolerates stale pid files, and always removes the launcher pid file
   - viewer startup is split into `build` then `run --skip-build`, which lets the launcher supervise unexpected viewer exits without re-running the build each time
+  - the viewer supervisor also reapplies the default left-bottom KWin layout after each launch so respawned windows keep the expected monitor slot
   - viewer GPU experiments are now explicit env-driven inputs to the launcher, including Chromium GPU backend flags (`ASEE_VIEWER_USE_GL`, `ASEE_VIEWER_USE_ANGLE`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX`, `ASEE_VIEWER_EXTRA_ARGS`) and PRIME offload hints (`__NV_PRIME_RENDER_OFFLOAD`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER`, `__GLX_VENDOR_LIBRARY_NAME`, `DRI_PRIME`)
   - each viewer attempt logs both the effective GPU env values and the resolved Electron args into the per-port viewer log so desktop freezes can be correlated with the exact launch mode
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated

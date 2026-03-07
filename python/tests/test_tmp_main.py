@@ -216,6 +216,26 @@ def test_start_passes_gpu_experiment_env_to_viewer(tmp_path: Path) -> None:
     assert node_invocation["dri_prime"] == "1"
 
 
+def test_start_bakes_left_bottom_layout_into_viewer_supervisor(tmp_path: Path) -> None:
+    env, _ = _build_stubbed_env(tmp_path, port=19145)
+
+    result = subprocess.run(
+        [str(SCRIPT), "start", "--port", "19145", "--device", "0"],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    runner_script = Path("/tmp/asee_tmp_main_viewer_runner_19145.sh")
+    assert runner_script.exists()
+    content = runner_script.read_text(encoding="utf-8")
+    assert f'"{PROJECT_ROOT}/tmp_main.sh" layout --port "19145" --left-bottom' in content
+
+
 def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
     env, invocation_log = _build_stubbed_env(tmp_path, port=19142)
 

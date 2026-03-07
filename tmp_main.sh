@@ -433,7 +433,19 @@ while true; do
     __NV_PRIME_RENDER_OFFLOAD_PROVIDER="${VIEWER_NV_PRIME_RENDER_OFFLOAD_PROVIDER}" \\
     __GLX_VENDOR_LIBRARY_NAME="${VIEWER_GLX_VENDOR_LIBRARY_NAME}" \\
     DRI_PRIME="${VIEWER_DRI_PRIME}" \\
-    node ./scripts/run-electron-with-x11-env.mjs --skip-build ${disable_gpu_arg} >> "${VIEWER_LOG}" 2>&1
+    node ./scripts/run-electron-with-x11-env.mjs --skip-build ${disable_gpu_arg} >> "${VIEWER_LOG}" 2>&1 &
+  viewer_child=\$!
+  for attempt in \$(seq 1 20); do
+    if command -v wmctrl >/dev/null 2>&1 && DISPLAY="${DISPLAY}" wmctrl -l 2>/dev/null | grep -Fq "${WINDOW_TITLE}"; then
+      "${ROOT_DIR}/tmp_main.sh" layout --port "${PORT}" --left-bottom >> "${VIEWER_LOG}" 2>&1 || true
+      break
+    fi
+    if ! kill -0 "\${viewer_child}" 2>/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+  wait "\${viewer_child}"
   viewer_rc=\$?
   printf '[%s] viewer run exit code=%s\n' "\$(date --iso-8601=seconds)" "\${viewer_rc}" >> "${VIEWER_LOG}"
   if [[ "${VIEWER_RESPAWN}" != "1" ]]; then
