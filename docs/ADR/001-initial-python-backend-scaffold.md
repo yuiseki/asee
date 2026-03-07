@@ -28,6 +28,7 @@ Accepted
   - `/overlay_text`
   - `/status`
   - `/biometric_status`
+- the third extracted slice adds pure DNN backend policy helpers from `god_mode_overlay.py`
 - OpenCV-heavy capture / overlay / MJPEG generation stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -36,6 +37,7 @@ Accepted
 - migration can begin with low-risk contract extraction and unit tests
 - the Python backend remains testable without cameras, OpenCV, or a desktop session
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
+- backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - the eventual split becomes:
   - Python backend in `asee`
   - Electron viewer as a separate surface layer

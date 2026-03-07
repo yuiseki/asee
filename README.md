@@ -10,6 +10,7 @@ Agentic seeing backend for camera recognition and biometric status.
   - biometric status aggregation independent from HTTP / OpenCV runtime
   - web shell asset builders for the future Electron viewer
   - Flask HTTP shell contract for `god_mode_video_server.py`
+  - DNN backend policy helpers for `god_mode_overlay.py`
 - `god_mode_predictor.py` is intentionally excluded from migration for now
 
 ## Commands
@@ -38,10 +39,14 @@ python3 -m venv .venv
   - `OverlayTextState`
   - `InMemoryHttpRuntime`
   - `create_http_app()`
+- `asee.dnn_policy`
+  - `should_use_opencl_dnn()`
+  - `emit_opencl_nonfatal_warning_note()`
 
 ## Planned Next Slice
 
 - extract more of the Python backend contract from `god_mode_video_server.py`
+- extract backend adapters from `god_mode_overlay.py` without dragging OpenCV UI concerns
 - add compatibility adapters around the extracted Flask app factory
 - keep image processing and biometric inference in Python
 - add an Electron viewer separately instead of pushing CV logic into TypeScript
