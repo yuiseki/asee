@@ -10,6 +10,14 @@ from .camera_layout import (
 )
 from .capture_writer import FaceCaptureWriter
 from .detection_runtime import YunetDetectionPipeline, to_square
+from .diagnostics import (
+    JsonlDiagnosticsLogger,
+    MemoryMonitor,
+    NullDiagnosticsLogger,
+    ProcessMetrics,
+    build_default_diagnostics_log_path,
+    read_process_metrics,
+)
 from .dnn_policy import (
     IMPORTANT_OPENCL_WARNING_NOTE,
     emit_opencl_nonfatal_warning_note,
@@ -28,6 +36,7 @@ from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
 from .video_server import (
     GodModeVideoServer,
+    LiveCameraDisabledError,
     build_arg_parser,
     build_server_from_args,
     encode_frame_to_jpeg,
@@ -47,9 +56,15 @@ __all__ = [
     "FaceTracker",
     "IMPORTANT_OPENCL_WARNING_NOTE",
     "GodModeVideoServer",
+    "JsonlDiagnosticsLogger",
+    "LiveCameraDisabledError",
+    "MemoryMonitor",
+    "NullDiagnosticsLogger",
+    "ProcessMetrics",
     "build_arg_parser",
     "build_server_from_args",
     "build_camera_csv",
+    "build_default_diagnostics_log_path",
     "detect_v4l2_devices",
     "DEFAULT_OWNER_EMBED_PATH",
     "EnrollmentError",
@@ -70,6 +85,7 @@ __all__ = [
     "OverlayTextState",
     "parse_camera_csv",
     "parse_v4l2_devices",
+    "read_process_metrics",
     "SeeingServerRuntime",
     "should_use_opencl_dnn",
     "to_square",

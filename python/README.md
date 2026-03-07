@@ -27,8 +27,22 @@ python3 -m venv .venv
 .venv/bin/pytest
 .venv/bin/mypy src
 .venv/bin/ruff check
-.venv/bin/python -m asee.video_server --port 8765 --device 0
+.venv/bin/python -m asee.video_server --port 8765
+# live camera is opt-in only
+.venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
 ```
+
+## Safety And Diagnostics
+
+- `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
+- Every CLI launch now creates a persistent JSONL diagnostics log under `~/.local/state/asee/video-server/` unless `--diagnostic-log-path` is specified.
+- Each run also enables `faulthandler` and writes a sibling `.fault.log`.
+- The diagnostics stream records:
+  - server start/stop and worker lifecycle
+  - HTTP request summaries
+  - camera open attempts, read failures, and capture/detection heartbeats
+  - periodic memory samples with RSS/HWM, FD count, GC counters, and `tracemalloc`
+- Use `--memory-log-interval-sec` to tighten or relax memory sampling.
 
 ## Initial Modules
 
@@ -69,10 +83,16 @@ python3 -m venv .venv
 - `asee.server_runtime`
   - `SeeingServerRuntime`
   - overlay state, biometric status, owner embedding load, snapshot/stream contract
+- `asee.diagnostics`
+  - `JsonlDiagnosticsLogger`
+  - `MemoryMonitor`
+  - `read_process_metrics()`
+  - `build_default_diagnostics_log_path()`
 - `asee.video_server`
   - `GodModeVideoServer`
+  - `LiveCameraDisabledError`
   - `encode_frame_to_jpeg()`
-  - camera-less/single-camera HTTP compatibility server on top of extracted modules
+  - no-camera-safe HTTP compatibility server on top of extracted modules
 - `asee.enroll_owner`
   - `fetch_frame_from_server()`
   - `run_enrollment()`

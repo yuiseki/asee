@@ -9,9 +9,10 @@ from unittest.mock import call, patch
 from urllib.request import Request, urlopen
 
 import numpy as np
+import pytest
 
 from asee.tracking import FaceBox
-from asee.video_server import GodModeVideoServer, encode_frame_to_jpeg
+from asee.video_server import GodModeVideoServer, LiveCameraDisabledError, encode_frame_to_jpeg
 
 
 def wait_until(predicate: object, *, timeout: float = 2.0) -> bool:
@@ -51,13 +52,13 @@ class TestEncodeFrameToJpeg:
 
 class TestGodModeVideoServer:
     def test_instantiation(self) -> None:
-        server = GodModeVideoServer(port=18865, device_index=0)
+        server = GodModeVideoServer(port=18865, device_index=0, allow_live_camera=True)
 
         assert server.port == 18865
         assert server.is_running is False
 
     def test_update_frame(self) -> None:
-        server = GodModeVideoServer(port=18866, device_index=0)
+        server = GodModeVideoServer(port=18866, device_index=None)
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         server.update_frame(frame)
@@ -65,7 +66,7 @@ class TestGodModeVideoServer:
         assert server.current_frame is not None
 
     def test_update_overlay_text(self) -> None:
-        server = GodModeVideoServer(port=18867, device_index=0)
+        server = GodModeVideoServer(port=18867, device_index=None)
 
         server.update_overlay_text(caption="テスト観測", prediction="テスト予測")
 
@@ -102,8 +103,56 @@ class TestGodModeVideoServer:
         assert isinstance(status["ownerSeenAgoMs"], int)
         assert status["ownerSeenAgoMs"] >= 0
 
+    def test_live_camera_requires_explicit_opt_in_for_single_camera(self) -> None:
+        with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
+            GodModeVideoServer(port=18869, device_index=0)
+
+    def test_live_camera_requires_explicit_opt_in_for_multicamera(self) -> None:
+        with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
+            GodModeVideoServer(port=18869, device_index=None, camera_list=[0, 2, 4, 6])
+
+    def test_start_emits_diagnostics_events_and_memory_samples(self) -> None:
+        events: list[tuple[str, dict[str, object]]] = []
+
+        class FakeDiagnosticsLogger:
+            path = "/tmp/fake-asee-diagnostics.jsonl"
+
+            def log_event(self, event: str, **fields: object) -> None:
+                events.append((event, dict(fields)))
+
+            def open_fault_handler_stream(self) -> None:
+                return None
+
+            def close(self) -> None:
+                return None
+
+        server = GodModeVideoServer(
+            port=18870,
+            device_index=None,
+            diagnostics_logger=FakeDiagnosticsLogger(),
+            memory_log_interval_sec=0.01,
+        )
+        thread = threading.Thread(target=server.start, daemon=True)
+
+        thread.start()
+        assert wait_until(lambda: server.is_running)
+        assert wait_until(
+            lambda: any(event == "memory_sample" for event, _ in events),
+            timeout=3.0,
+        )
+
+        server.stop()
+        thread.join(timeout=3.0)
+
+        event_names = [event for event, _ in events]
+        assert "server_starting" in event_names
+        assert "server_started" in event_names
+        assert "memory_sample" in event_names
+        assert "server_stop_requested" in event_names
+        assert "server_stopped" in event_names
+
     def test_server_starts_and_stops(self) -> None:
-        server = GodModeVideoServer(port=18870, device_index=None)
+        server = GodModeVideoServer(port=18871, device_index=None)
         thread = threading.Thread(target=server.start, daemon=True)
 
         thread.start()
@@ -115,13 +164,13 @@ class TestGodModeVideoServer:
         assert server.is_running is False
 
     def test_http_root_returns_html(self) -> None:
-        server = GodModeVideoServer(port=18871, device_index=None)
+        server = GodModeVideoServer(port=18872, device_index=None)
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
         assert wait_until(lambda: server.is_running)
 
         try:
-            with urlopen("http://127.0.0.1:18871/", timeout=3) as response:
+            with urlopen("http://127.0.0.1:18872/", timeout=3) as response:
                 body = response.read().decode("utf-8")
                 assert response.status == 200
                 assert 'rel="manifest"' in body
@@ -131,14 +180,14 @@ class TestGodModeVideoServer:
             thread.join(timeout=3.0)
 
     def test_http_update_endpoint(self) -> None:
-        server = GodModeVideoServer(port=18872, device_index=None)
+        server = GodModeVideoServer(port=18873, device_index=None)
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
         assert wait_until(lambda: server.is_running)
 
         try:
             request = Request(
-                "http://127.0.0.1:18872/update",
+                "http://127.0.0.1:18873/update",
                 data=json.dumps(
                     {"caption": "観測テスト", "prediction": "予測テスト"}
                 ).encode("utf-8"),
@@ -157,7 +206,7 @@ class TestGodModeVideoServer:
 
     def test_http_manifest_endpoint(self) -> None:
         server = GodModeVideoServer(
-            port=18873,
+            port=18874,
             device_index=None,
             title="GOD MODE 18873",
         )
@@ -167,7 +216,7 @@ class TestGodModeVideoServer:
 
         try:
             with urlopen(
-                "http://127.0.0.1:18873/manifest.webmanifest",
+                "http://127.0.0.1:18874/manifest.webmanifest",
                 timeout=3,
             ) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -182,9 +231,10 @@ class TestGodModeVideoServer:
 
     def test_multicamera_update_frame_keeps_primary_as_current_frame(self) -> None:
         server = GodModeVideoServer(
-            port=18874,
+            port=18875,
             device_index=None,
             camera_list=[2, 4],
+            allow_live_camera=True,
         )
         secondary = np.zeros((720, 1280, 3), dtype=np.uint8)
         secondary[0, 0, 0] = 50
@@ -200,9 +250,10 @@ class TestGodModeVideoServer:
 
     def test_multicamera_biometric_status_aggregates_across_cameras(self) -> None:
         server = GodModeVideoServer(
-            port=18875,
+            port=18876,
             device_index=None,
             camera_list=[2, 4],
+            allow_live_camera=True,
         )
 
         server._record_owner_presence([FaceBox(x=0, y=0, w=10, h=10, label="OWNER")], camera_id=2)
@@ -218,7 +269,7 @@ class TestGodModeVideoServer:
         assert status["peopleCount"] == 2
 
     def test_switch_camera_sets_pending_target_and_event(self) -> None:
-        server = GodModeVideoServer(port=18876, device_index=0)
+        server = GodModeVideoServer(port=18877, device_index=0, allow_live_camera=True)
 
         server.switch_camera(6)
 
@@ -227,9 +278,10 @@ class TestGodModeVideoServer:
 
     def test_iter_mjpeg_uses_primary_camera_generator_for_multicamera(self) -> None:
         server = GodModeVideoServer(
-            port=18877,
+            port=18878,
             device_index=None,
             camera_list=[2, 4],
+            allow_live_camera=True,
         )
 
         with (
@@ -250,9 +302,10 @@ class TestGodModeVideoServer:
 
     def test_generate_mjpeg_device_uses_face_boxes_for_requested_camera(self) -> None:
         server = GodModeVideoServer(
-            port=18878,
+            port=18879,
             device_index=None,
             camera_list=[2, 4],
+            allow_live_camera=True,
         )
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         server.update_frame(frame, camera_id=4)
@@ -295,16 +348,17 @@ class TestGodModeVideoServer:
 
     def test_http_cameras_endpoint_returns_camera_ids(self) -> None:
         server = GodModeVideoServer(
-            port=18879,
+            port=18880,
             device_index=None,
             camera_list=[2, 4],
+            allow_live_camera=True,
         )
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
         assert wait_until(lambda: server.is_running)
 
         try:
-            with urlopen("http://127.0.0.1:18879/cameras", timeout=3) as response:
+            with urlopen("http://127.0.0.1:18880/cameras", timeout=3) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 assert response.status == 200
                 assert payload == {"cameras": [2, 4]}

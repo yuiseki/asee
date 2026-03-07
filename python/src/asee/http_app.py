@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import html
 import json
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, g, jsonify, request
 
 from .biometric_status import BiometricStatusValue
 from .web_shell import (
@@ -41,6 +42,7 @@ DEFAULT_INDEX_HTML = """<!doctype html>
 
 type BiometricStatusPayload = Mapping[str, BiometricStatusValue]
 type StreamFactory = Callable[[int | None], Iterable[bytes] | None]
+type RequestLogger = Callable[..., None]
 
 
 @dataclass(slots=True)
@@ -115,9 +117,29 @@ def create_http_app(
     runtime: SeeingHttpRuntime,
     *,
     index_html: str = DEFAULT_INDEX_HTML,
+    request_logger: RequestLogger | None = None,
 ) -> Flask:
     """Build the extracted Flask shell around an injectable runtime."""
     app = Flask(__name__)
+
+    @app.before_request
+    def before_request() -> None:
+        g.request_started_at = time.perf_counter()
+
+    @app.after_request
+    def after_request(response: Response) -> Response:
+        if request_logger is not None:
+            started_at = getattr(g, "request_started_at", None)
+            duration_ms = 0.0
+            if isinstance(started_at, float):
+                duration_ms = (time.perf_counter() - started_at) * 1000.0
+            request_logger(
+                method=request.method,
+                path=request.path,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+            )
+        return response
 
     @app.route("/")
     def index() -> str:

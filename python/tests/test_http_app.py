@@ -144,3 +144,22 @@ def test_stream_returns_not_implemented_without_generator():
 
     assert response.status_code == 501
     assert response.get_data(as_text=True) == "Streaming not implemented"
+
+
+def test_request_logger_receives_method_path_status_and_duration():
+    runtime = InMemoryHttpRuntime(is_running=True)
+    events: list[dict[str, object]] = []
+
+    def request_logger(**payload: object) -> None:
+        events.append(dict(payload))
+
+    response = create_http_app(runtime, request_logger=request_logger).test_client().get("/status")
+
+    assert response.status_code == 200
+    assert len(events) == 1
+    event = events[0]
+    assert event["method"] == "GET"
+    assert event["path"] == "/status"
+    assert event["status_code"] == 200
+    assert isinstance(event["duration_ms"], float)
+    assert event["duration_ms"] >= 0.0

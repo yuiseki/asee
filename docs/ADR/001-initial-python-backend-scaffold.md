@@ -58,6 +58,12 @@ Accepted
   - server snapshot fetch
   - direct camera fallback
   - embedding collection and persistence
+- the tenth extracted slice hardens the extracted runtime for safe operation before more live-camera migration
+  - `asee.video_server` defaults to no-camera mode
+  - live webcam access requires an explicit `--allow-live-camera` opt-in
+  - persistent JSONL diagnostics and `faulthandler` logs are enabled for CLI launches
+  - periodic memory samples track RSS/HWM, open FDs, GC counters, and `tracemalloc`
+  - HTTP requests and camera worker lifecycle are logged for crash reconstruction
 - OpenCV-heavy camera capture / MJPEG generation still stays in `tmp/GOD_MODE` until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 
@@ -65,6 +71,7 @@ Accepted
 
 - migration can begin with low-risk contract extraction and unit tests
 - the Python backend remains testable without cameras, OpenCV, or a desktop session
+- the default operational mode is now intentionally conservative: no-camera unless explicitly unlocked
 - the HTTP shell can now be tested with Flask's in-process test client instead of a live threaded server
 - backend-selection policy can evolve separately from the OpenCV drawing/runtime code
 - overlay runtime code can now be rebuilt on top of `asee` primitives instead of `tmp/GOD_MODE` internals
@@ -74,6 +81,7 @@ Accepted
 - `tmp/GOD_MODE/god_mode_video_server.py` now has a clear migration target in `asee.video_server`
 - compatibility wrappers for `god_mode_overlay.py` and `god_mode_video_server.py` can already re-export `asee` implementations while preserving the existing tmp-facing contract
 - `god_mode_enroll_owner.py` can also move behind an `asee.enroll_owner` compatibility facade
+- crash reproduction now leaves a persistent forensic trail even when automatic tests cannot cover the failure mode
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer as a separate surface layer
