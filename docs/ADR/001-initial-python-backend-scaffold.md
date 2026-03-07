@@ -61,6 +61,7 @@ Accepted
 - the tenth extracted slice hardens the extracted runtime for safe operation before more live-camera migration
   - `asee.video_server` defaults to no-camera mode
   - live webcam access requires an explicit `--allow-live-camera` opt-in
+  - risky repro runs can be bounded with `--auto-shutdown-sec`
   - persistent JSONL diagnostics and `faulthandler` logs are enabled for CLI launches
   - periodic memory samples track RSS/HWM, open FDs, GC counters, and `tracemalloc`
   - HTTP requests and camera worker lifecycle are logged for crash reconstruction

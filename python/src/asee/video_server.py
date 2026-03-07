@@ -126,6 +126,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=15.0,
         help="プロセスメモリ統計の採取間隔（秒）。0 以下で無効化",
     )
+    parser.add_argument(
+        "--auto-shutdown-sec",
+        type=float,
+        default=0.0,
+        help="安全のため指定秒数で自動停止する。0 以下で無効化",
+    )
     return parser
 
 
@@ -158,6 +164,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         allow_live_camera=allow_live_camera,
         diagnostics_logger=diagnostics_logger,
         memory_log_interval_sec=float(args.memory_log_interval_sec),
+        auto_shutdown_sec=float(args.auto_shutdown_sec),
     )
 
 
@@ -193,6 +200,7 @@ class GodModeVideoServer:
         allow_live_camera: bool = False,
         diagnostics_logger: DiagnosticsLogger | None = None,
         memory_log_interval_sec: float = 30.0,
+        auto_shutdown_sec: float = 0.0,
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -208,6 +216,7 @@ class GodModeVideoServer:
         self._cam_interval = cam_interval
         self._cam_index = 0
         self._allow_live_camera = allow_live_camera
+        self._auto_shutdown_sec = auto_shutdown_sec
         self._diagnostics = diagnostics_logger or NullDiagnosticsLogger()
         self._memory_monitor = MemoryMonitor(
             self._diagnostics,
@@ -331,6 +340,11 @@ class GodModeVideoServer:
             platform=platform.platform(),
         )
         self._memory_monitor.start()
+        if self._auto_shutdown_sec > 0:
+            self._start_worker(
+                name="auto_shutdown",
+                target=self._auto_shutdown_loop,
+            )
 
         if self._camera_list:
             for device in self._camera_list:
@@ -648,6 +662,20 @@ class GodModeVideoServer:
             raise
         finally:
             self._diagnostics.log_event("worker_stopped", worker=worker_name)
+
+    def _auto_shutdown_loop(self) -> None:
+        self._diagnostics.log_event(
+            "auto_shutdown_armed",
+            auto_shutdown_sec=self._auto_shutdown_sec,
+        )
+        if self._stop_event.wait(self._auto_shutdown_sec):
+            return
+        logger.warning("Auto shutdown triggered after %.3f seconds", self._auto_shutdown_sec)
+        self._diagnostics.log_event(
+            "auto_shutdown_triggered",
+            auto_shutdown_sec=self._auto_shutdown_sec,
+        )
+        self.stop()
 
     def _record_http_request(
         self,

@@ -34,6 +34,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# bounded live test window
+.venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
 
 ## Safety Policy
@@ -51,6 +53,7 @@ python3 -m venv .venv
   - camera open attempts, read failures, and periodic capture heartbeats
   - periodic process memory samples, including RSS/HWM, FD count, GC counters, and `tracemalloc`
 - Override the destination with `--diagnostic-log-path`, or tune sampling with `--memory-log-interval-sec`.
+- For risky live-camera repros, `--auto-shutdown-sec 60..180` gives the process a bounded lifetime even if the operator forgets to stop it.
 
 ### Electron viewer
 

@@ -50,6 +50,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         allow_live_camera=True,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
+        auto_shutdown_sec=90.0,
     )
 
     with (
@@ -70,6 +71,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         allow_live_camera=True,
         diagnostics_logger=logger_class.return_value,
         memory_log_interval_sec=12.5,
+        auto_shutdown_sec=90.0,
     )
 
 
@@ -86,6 +88,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         allow_live_camera=False,
         diagnostic_log_path=None,
         memory_log_interval_sec=30.0,
+        auto_shutdown_sec=0.0,
     )
 
     with (
@@ -116,6 +119,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         allow_live_camera=False,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
+        auto_shutdown_sec=0.0,
     )
 
     with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):

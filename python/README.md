@@ -30,6 +30,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# bounded live test window
+.venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
 
 ## Safety And Diagnostics
@@ -43,6 +45,7 @@ python3 -m venv .venv
   - camera open attempts, read failures, and capture/detection heartbeats
   - periodic memory samples with RSS/HWM, FD count, GC counters, and `tracemalloc`
 - Use `--memory-log-interval-sec` to tighten or relax memory sampling.
+- Use `--auto-shutdown-sec` to force a short-lived live-camera session for safer repro attempts.
 
 ## Initial Modules
 

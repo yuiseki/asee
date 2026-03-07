@@ -115,7 +115,9 @@ class TestGodModeVideoServer:
         events: list[tuple[str, dict[str, object]]] = []
 
         class FakeDiagnosticsLogger:
-            path = "/tmp/fake-asee-diagnostics.jsonl"
+            @property
+            def path(self) -> str:
+                return "/tmp/fake-asee-diagnostics.jsonl"
 
             def log_event(self, event: str, **fields: object) -> None:
                 events.append((event, dict(fields)))
@@ -149,6 +151,49 @@ class TestGodModeVideoServer:
         assert "server_started" in event_names
         assert "memory_sample" in event_names
         assert "server_stop_requested" in event_names
+        assert "server_stopped" in event_names
+
+    def test_auto_shutdown_stops_server_and_emits_diagnostics(self) -> None:
+        events: list[tuple[str, dict[str, object]]] = []
+
+        class FakeDiagnosticsLogger:
+            @property
+            def path(self) -> str:
+                return "/tmp/fake-asee-diagnostics.jsonl"
+
+            def log_event(self, event: str, **fields: object) -> None:
+                events.append((event, dict(fields)))
+
+            def open_fault_handler_stream(self) -> None:
+                return None
+
+            def close(self) -> None:
+                return None
+
+        server = GodModeVideoServer(
+            port=18890,
+            device_index=None,
+            diagnostics_logger=FakeDiagnosticsLogger(),
+            memory_log_interval_sec=0.0,
+            auto_shutdown_sec=0.2,
+        )
+        thread = threading.Thread(target=server.start, daemon=True)
+
+        thread.start()
+        assert wait_until(
+            lambda: any(event == "server_started" for event, _ in events),
+            timeout=3.0,
+        )
+        assert wait_until(
+            lambda: any(event == "auto_shutdown_triggered" for event, _ in events),
+            timeout=3.0,
+        )
+        thread.join(timeout=3.0)
+
+        assert server.is_running is False
+        event_names = [event for event, _ in events]
+        assert "auto_shutdown_armed" in event_names
+        assert "auto_shutdown_triggered" in event_names
         assert "server_stopped" in event_names
 
     def test_server_starts_and_stops(self) -> None:
