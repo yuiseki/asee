@@ -5,6 +5,8 @@ import json
 from asee import (
     RemoteBiometricStatusClient,
     fetch_remote_biometric_status,
+    owner_face_absent_for_lock_from_status,
+    owner_face_recent_for_unlock_from_status,
     resolve_remote_biometric_status_client,
 )
 
@@ -180,3 +182,25 @@ def test_fetch_remote_biometric_status_returns_none_when_no_url_is_available() -
 
     assert client is None
     assert status is None
+
+
+def test_owner_face_absent_for_lock_from_status_applies_threshold() -> None:
+    assert owner_face_absent_for_lock_from_status(
+        {"ownerPresent": False, "ownerSeenAgoMs": 130_000},
+        absent_lock_sec=120,
+    ) is True
+    assert owner_face_absent_for_lock_from_status(
+        {"ownerPresent": False, "ownerSeenAgoMs": 30_000},
+        absent_lock_sec=120,
+    ) is False
+
+
+def test_owner_face_recent_for_unlock_from_status_accepts_present_or_fresh_owner() -> None:
+    assert owner_face_recent_for_unlock_from_status(
+        {"ownerPresent": True, "ownerSeenAgoMs": 9_999},
+        fresh_ms=2_000,
+    ) is True
+    assert owner_face_recent_for_unlock_from_status(
+        {"ownerPresent": False, "ownerSeenAgoMs": 1_500},
+        fresh_ms=2_000,
+    ) is True

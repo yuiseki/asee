@@ -32,33 +32,49 @@ class RemoteBiometricStatusClient:
 
     def owner_face_absent_for_lock(self, *, absent_lock_sec: int) -> bool:
         status = self.fetch_status()
-        if not isinstance(status, dict):
-            return False
-        if bool(status.get("ownerPresent")):
-            return False
-        age_ms = status.get("ownerSeenAgoMs")
-        if age_ms is None:
-            return True
-        try:
-            threshold_ms = max(0, int(absent_lock_sec) * 1000)
-            return int(age_ms) >= threshold_ms
-        except Exception:
-            return False
+        return owner_face_absent_for_lock_from_status(status, absent_lock_sec=absent_lock_sec)
 
     def owner_face_recent_for_unlock(self, *, fresh_ms: int) -> bool:
         status = self.fetch_status()
-        if not isinstance(status, dict):
-            return False
-        if bool(status.get("ownerPresent")):
-            return True
-        age_ms = status.get("ownerSeenAgoMs")
-        if age_ms is None:
-            return False
-        try:
-            threshold_ms = max(0, int(fresh_ms))
-            return int(age_ms) <= threshold_ms
-        except Exception:
-            return False
+        return owner_face_recent_for_unlock_from_status(status, fresh_ms=fresh_ms)
+
+
+def owner_face_absent_for_lock_from_status(
+    status: dict[str, Any] | None,
+    *,
+    absent_lock_sec: int,
+) -> bool:
+    if not isinstance(status, dict):
+        return False
+    if bool(status.get("ownerPresent")):
+        return False
+    age_ms = status.get("ownerSeenAgoMs")
+    if age_ms is None:
+        return True
+    try:
+        threshold_ms = max(0, int(absent_lock_sec) * 1000)
+        return int(age_ms) >= threshold_ms
+    except Exception:
+        return False
+
+
+def owner_face_recent_for_unlock_from_status(
+    status: dict[str, Any] | None,
+    *,
+    fresh_ms: int,
+) -> bool:
+    if not isinstance(status, dict):
+        return False
+    if bool(status.get("ownerPresent")):
+        return True
+    age_ms = status.get("ownerSeenAgoMs")
+    if age_ms is None:
+        return False
+    try:
+        threshold_ms = max(0, int(fresh_ms))
+        return int(age_ms) <= threshold_ms
+    except Exception:
+        return False
 
 
 def resolve_remote_biometric_status_client(

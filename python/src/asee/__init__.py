@@ -3,6 +3,8 @@
 from .biometric_client import (
     RemoteBiometricStatusClient,
     fetch_remote_biometric_status,
+    owner_face_absent_for_lock_from_status,
+    owner_face_recent_for_unlock_from_status,
     resolve_remote_biometric_status_client,
 )
 from .biometric_status import BiometricStatusTracker
@@ -66,6 +68,8 @@ __all__ = [
     "BiometricStatusTracker",
     "RemoteBiometricStatusClient",
     "fetch_remote_biometric_status",
+    "owner_face_absent_for_lock_from_status",
+    "owner_face_recent_for_unlock_from_status",
     "resolve_remote_biometric_status_client",
     "CaptureSettings",
     "FaceBox",
