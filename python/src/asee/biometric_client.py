@@ -79,3 +79,24 @@ def resolve_remote_biometric_status_client(
         timeout_sec=timeout_sec,
         logger=logger,
     )
+
+
+def fetch_remote_biometric_status(
+    *,
+    current_client: Any | None,
+    status_url: str,
+    logger: Callable[[str], None] | None = None,
+    timeout_sec: float = 1.5,
+    client_factory: Callable[..., Any] = RemoteBiometricStatusClient,
+) -> tuple[Any | None, dict[str, Any] | None]:
+    client = resolve_remote_biometric_status_client(
+        current_client=current_client,
+        status_url=status_url,
+        logger=logger,
+        timeout_sec=timeout_sec,
+        client_factory=client_factory,
+    )
+    if client is None:
+        return None, None
+    status = client.fetch_status()
+    return client, status if isinstance(status, dict) else None

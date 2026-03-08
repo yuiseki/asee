@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from asee import RemoteBiometricStatusClient, resolve_remote_biometric_status_client
+from asee import (
+    RemoteBiometricStatusClient,
+    fetch_remote_biometric_status,
+    resolve_remote_biometric_status_client,
+)
 
 
 class _FakeResponse:
@@ -149,3 +153,30 @@ def test_resolve_remote_biometric_status_client_returns_none_for_blank_url() -> 
     )
 
     assert client is None
+
+
+def test_fetch_remote_biometric_status_reuses_client_and_returns_status() -> None:
+    current = RemoteBiometricStatusClient(
+        status_url="http://127.0.0.1:8765/biometric_status",
+        opener=lambda request, timeout: _FakeResponse(  # noqa: ARG005
+            json.dumps({"ownerPresent": True}).encode("utf-8")
+        ),
+    )
+
+    client, status = fetch_remote_biometric_status(
+        current_client=current,
+        status_url="http://127.0.0.1:8765/biometric_status",
+    )
+
+    assert client is current
+    assert status == {"ownerPresent": True}
+
+
+def test_fetch_remote_biometric_status_returns_none_when_no_url_is_available() -> None:
+    client, status = fetch_remote_biometric_status(
+        current_client=None,
+        status_url=" ",
+    )
+
+    assert client is None
+    assert status is None
