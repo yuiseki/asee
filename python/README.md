@@ -94,6 +94,8 @@ python3 -m venv .venv
   - `build_camera_csv()`
 - `asee.biometric_status`
   - `BiometricStatusTracker`
+- `asee.biometric_client`
+  - `RemoteBiometricStatusClient`
 - `asee.web_shell`
   - `build_web_manifest()`
   - `build_service_worker_script()`

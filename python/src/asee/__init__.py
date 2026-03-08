@@ -1,5 +1,6 @@
 """Agentic seeing backend primitives."""
 
+from .biometric_client import RemoteBiometricStatusClient
 from .biometric_status import BiometricStatusTracker
 from .camera_layout import (
     build_camera_csv,
@@ -59,6 +60,7 @@ from .web_shell import (
 
 __all__ = [
     "BiometricStatusTracker",
+    "RemoteBiometricStatusClient",
     "CaptureSettings",
     "FaceBox",
     "FaceCaptureWriter",

@@ -86,6 +86,9 @@ Accepted
   - the viewer supervisor also reapplies the default left-bottom KWin layout after each launch so respawned windows keep the expected monitor slot
   - viewer GPU experiments are now explicit env-driven inputs to the launcher, including Chromium GPU backend flags (`ASEE_VIEWER_USE_GL`, `ASEE_VIEWER_USE_ANGLE`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX`, `ASEE_VIEWER_EXTRA_ARGS`) and PRIME offload hints (`__NV_PRIME_RENDER_OFFLOAD`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER`, `__GLX_VENDOR_LIBRARY_NAME`, `DRI_PRIME`)
   - each viewer attempt logs both the effective GPU env values and the resolved Electron args into the per-port viewer log so desktop freezes can be correlated with the exact launch mode
+- the twelfth extracted slice adds a reusable remote biometric-status client
+  - `asee.biometric_client.RemoteBiometricStatusClient`
+  - `tmp/whispercpp-listen` can now fetch `/biometric_status` through `asee` instead of open-coding HTTP request glue
 - OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
