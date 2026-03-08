@@ -59,3 +59,23 @@ class RemoteBiometricStatusClient:
             return int(age_ms) <= threshold_ms
         except Exception:
             return False
+
+
+def resolve_remote_biometric_status_client(
+    *,
+    current_client: Any | None,
+    status_url: str,
+    logger: Callable[[str], None] | None = None,
+    timeout_sec: float = 1.5,
+    client_factory: Callable[..., Any] = RemoteBiometricStatusClient,
+) -> Any | None:
+    if current_client is not None:
+        return current_client
+    resolved_url = str(status_url or "").strip()
+    if not resolved_url:
+        return None
+    return client_factory(
+        status_url=resolved_url,
+        timeout_sec=timeout_sec,
+        logger=logger,
+    )

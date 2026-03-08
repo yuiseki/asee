@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from asee import RemoteBiometricStatusClient
+from asee import RemoteBiometricStatusClient, resolve_remote_biometric_status_client
 
 
 class _FakeResponse:
@@ -103,3 +103,49 @@ def test_owner_face_recent_for_unlock_rejects_stale_or_missing_owner() -> None:
 
     assert stale_client.owner_face_recent_for_unlock(fresh_ms=2_000) is False
     assert missing_age_client.owner_face_recent_for_unlock(fresh_ms=2_000) is False
+
+
+def test_resolve_remote_biometric_status_client_reuses_existing_client() -> None:
+    current = object()
+
+    client = resolve_remote_biometric_status_client(
+        current_client=current,
+        status_url="http://127.0.0.1:8765/biometric_status",
+    )
+
+    assert client is current
+
+
+def test_resolve_remote_biometric_status_client_builds_client_when_url_is_present() -> None:
+    created: list[dict[str, object]] = []
+    logs: list[str] = []
+
+    def factory(**kwargs: object) -> object:
+        created.append(kwargs)
+        return {"client": True}
+
+    client = resolve_remote_biometric_status_client(
+        current_client=None,
+        status_url=" http://127.0.0.1:8765/biometric_status ",
+        timeout_sec=2.0,
+        logger=logs.append,
+        client_factory=factory,
+    )
+
+    assert client == {"client": True}
+    assert created == [
+        {
+            "status_url": "http://127.0.0.1:8765/biometric_status",
+            "timeout_sec": 2.0,
+            "logger": logs.append,
+        }
+    ]
+
+
+def test_resolve_remote_biometric_status_client_returns_none_for_blank_url() -> None:
+    client = resolve_remote_biometric_status_client(
+        current_client=None,
+        status_url="   ",
+    )
+
+    assert client is None
