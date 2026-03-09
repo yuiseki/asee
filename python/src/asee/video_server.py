@@ -864,46 +864,50 @@ class GodModeVideoServer:
                 else:
                     batch_results = [self.overlay.detect_faces(f) for f in frames_to_process]
                 
-                # Process results
+                # Prepare for batch recognition (all faces from all cameras)
+                recognition_requests: list[tuple[FrameArray, FaceBox, int, int]] = []
+                
                 for i, detections in enumerate(batch_results):
                     device = camera_ids[i]
                     if detections is None:
                         continue
+                    
+                    source_frame = frames_to_process[i]
+                    frame_h, frame_w = source_frame.shape[:2]
+                    
+                    for row_idx, row in enumerate(detections):
+                        # Create FaceBox from detector output
+                        rx, ry, rw, rh = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+                        sq_x, sq_y, sq_w, sq_h = to_square(rx, ry, rw, rh, frame_w=frame_w, frame_h=frame_h)
+                        face_box = FaceBox(x=sq_x, y=sq_y, w=sq_w, h=sq_h, confidence=float(row[14]), raw_detection=row)
                         
-                    faces = []
-                    if isinstance(detections, np.ndarray):
-                        # GpuYuNetDetector returns raw ndarray; run SFace label classification
-                        source_frame = frames_to_process[i]
-                        frame_h, frame_w = source_frame.shape[:2]
-                        for row in detections:
-                            # Original detected box
-                            rx, ry, rw, rh = int(row[0]), int(row[1]), int(row[2]), int(row[3])
-                            # Expand to square (consistent with legacy OpenCV pipeline)
-                            sq_x, sq_y, sq_w, sq_h = to_square(
-                                rx, ry, rw, rh, frame_w=frame_w, frame_h=frame_h
-                            )
-                            
-                            face_box = FaceBox(
-                                x=sq_x,
-                                y=sq_y,
-                                w=sq_w,
-                                h=sq_h,
-                                confidence=float(row[14]),
-                                raw_detection=row,
-                            )
-                            face_box.label, face_box.confidence = self.overlay._classify_label(
-                                source_frame, face_box
-                            )
-                            faces.append(face_box)
-                    else:
-                        faces = detections # Already FaceBox list
+                        # (frame, face_box, camera_id, camera_index_in_batch)
+                        recognition_requests.append((source_frame, face_box, device, i))
+
+                # Batch Recognize on GPU
+                if recognition_requests:
+                    batch_inputs = [(r[0], r[1]) for r in recognition_requests]
+                    embeddings = self.overlay.extract_embeddings_batch(batch_inputs)
                     
-                    tracker = self._trackers_per_cam.get(device)
-                    if tracker is not None:
-                        faces = tracker.update(faces)
+                    # Group results by camera
+                    faces_per_cam: dict[int, list[FaceBox]] = {cid: [] for cid in camera_ids}
                     
-                    self._record_owner_presence(faces, camera_id=device)
-                    self._record_detection(device, faces, started_at=started_at)
+                    for req, embedding in zip(recognition_requests, embeddings):
+                        _, face_box, device, _ = req
+                        if embedding is not None:
+                            # Classify owner status using extracted embedding
+                            face_box.label, face_box.confidence = self.overlay._classify_label_with_embedding(embedding, face_box)
+                        
+                        faces_per_cam[device].append(face_box)
+
+                    # Update trackers and records
+                    for device, faces in faces_per_cam.items():
+                        tracker = self._trackers_per_cam.get(device)
+                        if tracker is not None:
+                            faces = tracker.update(faces)
+                        
+                        self._record_owner_presence(faces, camera_id=device)
+                        self._record_detection(device, faces, started_at=started_at)
                     
             except Exception as e:
                 logger.error("Centralized inference error: %s", e)

@@ -161,7 +161,8 @@ def test_detection_backend_opencv_default():
 
 
 def test_detection_backend_onnxruntime():
-    """onnxruntime backend must create a GpuYuNetDetector."""
+    """onnxruntime backend must create a GpuYuNetDetector and GpuSFaceRecognizer."""
+    from asee.gpu_sface import GpuSFaceRecognizer
     from asee.gpu_yunet import GpuYuNetDetector
 
     overlay = GodModeOverlay(
@@ -170,6 +171,7 @@ def test_detection_backend_onnxruntime():
         detection_backend="onnxruntime",
     )
     assert isinstance(overlay._detector, GpuYuNetDetector)
+    assert isinstance(overlay._recognizer, GpuSFaceRecognizer)
 
 
 def test_detection_backend_onnxruntime_detects_no_faces_on_blank():

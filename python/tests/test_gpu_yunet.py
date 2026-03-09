@@ -479,10 +479,11 @@ class TestGpuYuNetNormalization:
         with patch.object(F_mod, "interpolate", side_effect=capture_interpolate):
             det.detect(white_frame)
 
-        # White frame: after ÷255 all pixels should be 1.0; without ÷255 they'd be 255.0
+        # YuNet expects [0, 255] raw values (scalefactor=1.0 like cv2.FaceDetectorYN).
+        # A white frame should produce a tensor with max ≈ 255.0 (not 1.0).
         if captured:
             max_val = float(captured[0].max().item())
-            assert max_val <= 1.01, (
-                f"Input tensor max={max_val:.2f} — model expects [0,1] but got [0,255] range. "
-                "Missing /255.0 normalisation in detect_batch."
+            assert max_val >= 200.0, (
+                f"Input tensor max={max_val:.2f} — model expects [0,255] raw values. "
+                "Do NOT divide by 255 in detect_batch."
             )
