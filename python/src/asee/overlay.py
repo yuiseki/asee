@@ -98,6 +98,7 @@ class GodModeOverlay:
         face_capture_dir: str | None = None,
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
+        detection_backend: str = "opencv",
     ) -> None:
         self.width = width
         self.height = height
@@ -105,7 +106,10 @@ class GodModeOverlay:
         self.prediction = ""
         self._owner_embeddings: EmbeddingArray | None = None
 
-        self._detector = self._load_yunet(yunet_path, width, height)
+        if detection_backend == "onnxruntime":
+            self._detector = self._load_yunet_onnxruntime(yunet_path, width, height)
+        else:
+            self._detector = self._load_yunet(yunet_path, width, height)
         self._recognizer = self._load_sface(sface_path)
         self._haar = self._load_haar()
         self._tracker = FaceTracker(alpha=0.4, max_lost_frames=2, min_hits=3)
@@ -221,6 +225,26 @@ class GodModeOverlay:
                     return None
                 logger.warning("YuNet load failed with backend=%s: %s", next_backend_id, error)
         return None
+
+    def _load_yunet_onnxruntime(self, path: str, width: int, height: int) -> Any:
+        """Load YuNet via onnxruntime with CUDA, falling back to OpenCV on error."""
+        try:
+            from .gpu_yunet import GpuYuNetDetector
+
+            det = GpuYuNetDetector(
+                model_path=path,
+                input_size=(width, height),
+                score_threshold=0.6,
+                nms_threshold=0.3,
+                top_k=10,
+            )
+            logger.info("YuNet loaded via onnxruntime (%s)", det.active_provider)
+            return det
+        except Exception as error:
+            logger.warning(
+                "onnxruntime YuNet load failed, falling back to OpenCV: %s", error
+            )
+            return self._load_yunet(path, width, height)
 
     def _load_sface(self, path: str) -> Any:
         if not os.path.exists(path):

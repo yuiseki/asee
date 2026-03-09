@@ -109,6 +109,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         fourcc=None,
         opencv_threads=None,
         disable_face_detect=True,
+        detection_backend="opencv",
     )
 
     with (
@@ -137,6 +138,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         fourcc=None,
         opencv_threads=None,
         enable_face_detection=False,
+        detection_backend="opencv",
     )
 
 
@@ -161,6 +163,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         fourcc=None,
         opencv_threads=None,
         disable_face_detect=False,
+        detection_backend="opencv",
     )
 
     with (
@@ -199,10 +202,64 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         fourcc=None,
         opencv_threads=None,
         disable_face_detect=False,
+        detection_backend="opencv",
     )
 
     with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
         build_server_from_args(args)
+
+
+def test_build_arg_parser_accepts_detection_backend_onnxruntime() -> None:
+    """--detection-backend onnxruntime must be accepted by the arg parser."""
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args(["--detection-backend", "onnxruntime"])
+    assert args.detection_backend == "onnxruntime"
+
+
+def test_build_arg_parser_detection_backend_default_is_opencv() -> None:
+    """--detection-backend must default to 'opencv'."""
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.detection_backend == "opencv"
+
+
+def test_build_server_from_args_passes_detection_backend_to_server() -> None:
+    """build_server_from_args must forward detection_backend to GodModeVideoServer."""
+    args = SimpleNamespace(
+        port=8765,
+        device=-1,
+        cameras="",
+        cam_interval=60,
+        title="GOD MODE",
+        face_capture_dir="",
+        face_capture_min_interval=1.0,
+        subject_capture_dir="",
+        allow_live_camera=False,
+        diagnostic_log_path="/tmp/asee-test.jsonl",
+        memory_log_interval_sec=30.0,
+        auto_shutdown_sec=0.0,
+        capture_profile="auto",
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        opencv_threads=None,
+        disable_face_detect=False,
+        detection_backend="onnxruntime",
+    )
+
+    with (
+        patch("asee.video_server.GodModeVideoServer") as server_class,
+        patch("asee.video_server.JsonlDiagnosticsLogger"),
+    ):
+        build_server_from_args(args)
+
+    call_kwargs = server_class.call_args.kwargs
+    assert call_kwargs.get("detection_backend") == "onnxruntime"
 
 
 def test_main_builds_server_and_starts_it() -> None:

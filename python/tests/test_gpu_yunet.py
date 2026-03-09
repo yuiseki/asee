@@ -1,0 +1,276 @@
+"""Tests for GpuYuNetDetector – onnxruntime-based drop-in for cv2.FaceDetectorYN."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+BLANK_FRAME_640 = np.zeros((640, 640, 3), dtype=np.uint8)
+BLANK_FRAME_360 = np.zeros((360, 640, 3), dtype=np.uint8)
+
+
+def _make_mock_session(*, provider="CPUExecutionProvider", n_per_scale: int = 0):
+    """Return a mock ort.InferenceSession producing plausible zero-or-low outputs."""
+    session = MagicMock()
+    session.get_providers.return_value = [provider]
+
+    # Build outputs: cls (3) + obj (3) + bbox (3) + kps (3) = 12 tensors
+    # Strides 8, 16, 32 → feature sizes 80x80, 40x40, 20x20 (for 640x640 input)
+    sizes = [80 * 80, 40 * 40, 20 * 20]
+    outputs = []
+    for n in sizes:
+        outputs.append(np.full((1, n, 1), 0.3, dtype=np.float32))   # cls (below 0.6)
+    for n in sizes:
+        outputs.append(np.full((1, n, 1), 0.3, dtype=np.float32))   # obj
+    for n in sizes:
+        outputs.append(np.zeros((1, n, 4), dtype=np.float32))       # bbox
+    for n in sizes:
+        outputs.append(np.zeros((1, n, 10), dtype=np.float32))      # kps
+
+    session.run.return_value = outputs
+    return session
+
+
+# ---------------------------------------------------------------------------
+# Unit tests – no real model needed
+# ---------------------------------------------------------------------------
+
+
+class TestGpuYuNetPreprocess:
+    def test_preprocess_shape_640(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        blob = det._preprocess(BLANK_FRAME_640)
+        assert blob.shape == (1, 3, 640, 640)
+        assert blob.dtype == np.float32
+
+    def test_preprocess_resizes_smaller_frame(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        small_frame = np.zeros((360, 640, 3), dtype=np.uint8)
+        blob = det._preprocess(small_frame)
+        assert blob.shape == (1, 3, 640, 640)
+
+    def test_preprocess_values_in_float32_range(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        frame = np.full((640, 640, 3), 128, dtype=np.uint8)
+        blob = det._preprocess(frame)
+        assert blob.min() >= 0.0
+        assert blob.max() <= 255.0
+
+
+class TestGpuYuNetPostprocess:
+    def _make_det(self, score_threshold=0.6, nms_threshold=0.3, top_k=10):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det._score_threshold = score_threshold
+        det._nms_threshold = nms_threshold
+        det._top_k = top_k
+        return det
+
+    def test_postprocess_returns_none_on_low_scores(self):
+        """All scores below threshold → None."""
+        det = self._make_det()
+        session_mock = _make_mock_session()
+        outputs = session_mock.run.return_value
+        result = det._postprocess(outputs)
+        assert result is None
+
+    def test_postprocess_returns_array_on_high_scores(self):
+        """High cls*obj score above threshold → at least one detection."""
+        det = self._make_det(score_threshold=0.1)
+        session_mock = _make_mock_session()
+        outputs = list(session_mock.run.return_value)
+        # Boost cls/obj so sqrt(cls*obj) > 0.1
+        for i in range(3):
+            outputs[i] = np.full_like(outputs[i], 0.9)   # cls
+            outputs[i + 3] = np.full_like(outputs[i + 3], 0.9)  # obj
+        result = det._postprocess(outputs)
+        assert result is not None
+        assert result.ndim == 2
+        assert result.shape[1] == 15
+
+    def test_postprocess_detection_format_15_elements(self):
+        """Each detection row must be 15 elements: x,y,w,h,kps×10,score."""
+        det = self._make_det(score_threshold=0.1)
+        outputs = list(_make_mock_session().run.return_value)
+        for i in range(3):
+            outputs[i] = np.full_like(outputs[i], 0.9)
+            outputs[i + 3] = np.full_like(outputs[i + 3], 0.9)
+        result = det._postprocess(outputs)
+        assert result is not None
+        assert result.shape[1] == 15
+
+    def test_postprocess_score_in_last_column(self):
+        """Score (index 14) must be in valid [0, 1] range."""
+        det = self._make_det(score_threshold=0.1)
+        outputs = list(_make_mock_session().run.return_value)
+        for i in range(3):
+            outputs[i] = np.full_like(outputs[i], 0.81)   # sqrt(0.81*0.81) = 0.81
+            outputs[i + 3] = np.full_like(outputs[i + 3], 0.81)
+        result = det._postprocess(outputs)
+        assert result is not None
+        assert (result[:, 14] >= 0.0).all()
+        assert (result[:, 14] <= 1.0).all()
+
+    def test_postprocess_bbox_non_negative_wh(self):
+        """Decoded w and h (indices 2, 3) must be >= 0."""
+        det = self._make_det(score_threshold=0.1)
+        outputs = list(_make_mock_session().run.return_value)
+        for i in range(3):
+            outputs[i] = np.full_like(outputs[i], 0.9)
+            outputs[i + 3] = np.full_like(outputs[i + 3], 0.9)
+        result = det._postprocess(outputs)
+        assert result is not None
+        assert (result[:, 2] >= 0).all()
+        assert (result[:, 3] >= 0).all()
+
+
+class TestGpuYuNetInterface:
+    def test_set_input_size_camel_case(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det.setInputSize((320, 240))
+        assert det._input_w == 320
+        assert det._input_h == 240
+
+    def test_set_input_size_snake_case(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det.set_input_size((480, 480))
+        assert det._input_w == 480
+        assert det._input_h == 480
+
+    def test_detect_returns_tuple(self):
+        """detect() must return (int, array_or_None) like cv2.FaceDetectorYN."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det._score_threshold = 0.6
+        det._nms_threshold = 0.3
+        det._top_k = 10
+        det._session = _make_mock_session()
+
+        n, detections = det.detect(BLANK_FRAME_640)
+        assert isinstance(n, int)
+        assert n == 0
+        assert detections is None
+
+    def test_detect_returns_zero_count_on_blank(self):
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det._score_threshold = 0.6
+        det._nms_threshold = 0.3
+        det._top_k = 10
+        det._session = _make_mock_session()
+
+        n, _ = det.detect(BLANK_FRAME_640)
+        assert n == 0
+
+    def test_detect_count_matches_array_length(self):
+        """Return count must equal the number of detection rows."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det._score_threshold = 0.1
+        det._nms_threshold = 0.3
+        det._top_k = 10
+
+        mock_sess = _make_mock_session()
+        outputs = list(mock_sess.run.return_value)
+        for i in range(3):
+            outputs[i] = np.full_like(outputs[i], 0.9)
+            outputs[i + 3] = np.full_like(outputs[i + 3], 0.9)
+        mock_sess.run.return_value = outputs
+        det._session = mock_sess
+
+        n, detections = det.detect(BLANK_FRAME_640)
+        if detections is not None:
+            assert n == len(detections)
+        else:
+            assert n == 0
+
+
+class TestGpuYuNetWithPipeline:
+    def test_compatible_with_yunet_detection_pipeline(self):
+        """GpuYuNetDetector must work as drop-in for YunetDetectionPipeline."""
+        from asee.detection_runtime import YunetDetectionPipeline
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 640
+        det._input_h = 640
+        det._score_threshold = 0.6
+        det._nms_threshold = 0.3
+        det._top_k = 10
+        det._session = _make_mock_session()
+
+        classify_fn = MagicMock(return_value=("SUBJECT", 0.5))
+        pipeline = YunetDetectionPipeline(detector=det, classify_label=classify_fn)
+        faces = pipeline.detect_faces(BLANK_FRAME_640)
+        assert isinstance(faces, list)
+        assert len(faces) == 0  # blank frame → no detections
+
+
+class TestGpuYuNetConstruction:
+    def test_create_with_cpu_provider(self):
+        """Construction must succeed even without CUDA (falls back to CPU)."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        model_path = "src/asee/models/face_detection_yunet_2023mar.onnx"
+        det = GpuYuNetDetector(
+            model_path=model_path,
+            input_size=(640, 640),
+        )
+        assert det._input_w == 640
+        assert det._input_h == 640
+        assert det._session is not None
+
+    def test_active_provider_reported(self):
+        """active_provider property must return the selected execution provider."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        model_path = "src/asee/models/face_detection_yunet_2023mar.onnx"
+        det = GpuYuNetDetector(model_path=model_path, input_size=(640, 640))
+        assert "ExecutionProvider" in det.active_provider
+
+    def test_inference_on_blank_frame_returns_zero(self):
+        """Real inference on blank frame must return 0 detections."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        model_path = "src/asee/models/face_detection_yunet_2023mar.onnx"
+        det = GpuYuNetDetector(model_path=model_path, input_size=(640, 640))
+        n, detections = det.detect(BLANK_FRAME_640)
+        assert n == 0
+        assert detections is None

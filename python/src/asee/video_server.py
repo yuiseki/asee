@@ -232,6 +232,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="OpenCV の内部 thread 数。複数カメラ時の既定は 1",
     )
+    parser.add_argument(
+        "--detection-backend",
+        choices=["opencv", "onnxruntime"],
+        default="opencv",
+        help="顔検出バックエンド: opencv (既定) または onnxruntime (CUDA GPU 推論)",
+    )
     return parser
 
 
@@ -272,6 +278,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         fourcc=None if args.fourcc is None else str(args.fourcc),
         opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
+        detection_backend=str(args.detection_backend),
     )
 
 
@@ -313,6 +320,7 @@ class GodModeVideoServer:
         auto_shutdown_sec: float = 0.0,
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
+        detection_backend: str = "opencv",
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -357,6 +365,7 @@ class GodModeVideoServer:
             face_capture_dir=face_capture_dir,
             face_capture_min_interval=face_capture_min_interval,
             subject_capture_dir=subject_capture_dir,
+            detection_backend=detection_backend,
         )
         self.runtime = SeeingServerRuntime(
             title=title,

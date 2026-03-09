@@ -149,3 +149,33 @@ def test_face_capture_writer_enabled_with_dir(tmp_path):
     overlay = GodModeOverlay(width=320, height=240, face_capture_dir=str(tmp_path))
 
     assert overlay._face_capture_writer is not None
+
+
+def test_detection_backend_opencv_default():
+    """Default backend must load cv2.FaceDetectorYN (or None if model missing)."""
+    overlay = GodModeOverlay(width=320, height=240)
+    # detector is either a cv2.FaceDetectorYN or None — never a GpuYuNetDetector
+    from asee.gpu_yunet import GpuYuNetDetector
+
+    assert not isinstance(overlay._detector, GpuYuNetDetector)
+
+
+def test_detection_backend_onnxruntime():
+    """onnxruntime backend must create a GpuYuNetDetector."""
+    from asee.gpu_yunet import GpuYuNetDetector
+
+    overlay = GodModeOverlay(
+        width=640,
+        height=640,
+        detection_backend="onnxruntime",
+    )
+    assert isinstance(overlay._detector, GpuYuNetDetector)
+
+
+def test_detection_backend_onnxruntime_detects_no_faces_on_blank():
+    """onnxruntime backend detect_faces on blank frame must return empty list."""
+    overlay = GodModeOverlay(width=640, height=640, detection_backend="onnxruntime")
+    blank = np.zeros((640, 640, 3), dtype=np.uint8)
+    faces = overlay.detect_faces(blank)
+    assert isinstance(faces, list)
+    assert len(faces) == 0
