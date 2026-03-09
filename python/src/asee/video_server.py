@@ -18,7 +18,14 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import werkzeug.serving
-from turbojpeg import TurboJPEG
+
+try:
+    from turbojpeg import TurboJPEG as _TurboJPEG  # type: ignore[import-not-found]
+
+    _TURBOJPEG_AVAILABLE = True
+except ImportError:
+    _TurboJPEG = None
+    _TURBOJPEG_AVAILABLE = False
 
 from .diagnostics import (
     DiagnosticsLogger,
@@ -70,21 +77,21 @@ class CameraRuntimeStats:
     last_detection_log_at: float = 0.0
 
 
-jpeg_encoder = TurboJPEG()
+jpeg_encoder = _TurboJPEG() if _TURBOJPEG_AVAILABLE else None
 
 
 def encode_frame_to_jpeg(frame: FrameArray, quality: int = 70) -> bytes:
-    """Encode a frame into a JPEG payload using TurboJPEG."""
-    try:
-        # TurboJPEG is significantly faster than cv2.imencode
-        return cast(bytes, jpeg_encoder.encode(frame, quality=quality))
-    except Exception as e:
-        logger.error("TurboJPEG encode failed: %s, falling back to OpenCV", e)
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-        ok, buffer = cv2.imencode(".jpg", frame, encode_param)
-        if not ok:
-            raise RuntimeError("JPEG encode failed") from e
-        return buffer.tobytes()
+    """Encode a frame into a JPEG payload using TurboJPEG with OpenCV fallback."""
+    if jpeg_encoder is not None:
+        try:
+            return cast(bytes, jpeg_encoder.encode(frame, quality=quality))
+        except Exception as e:
+            logger.error("TurboJPEG encode failed: %s, falling back to OpenCV", e)
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    ok, buffer = cv2.imencode(".jpg", frame, encode_param)
+    if not ok:
+        raise RuntimeError("JPEG encode failed")
+    return buffer.tobytes()
 
 
 def decode_fourcc_value(value: float) -> str:
@@ -697,31 +704,6 @@ class GodModeVideoServer:
         logger.info("Camera %s released", device)
         self._diagnostics.log_event("camera_released", camera_id=device)
 
-    def _face_detect_loop(self) -> None:
-        while not self._stop_event.is_set():
-            frame = self.current_frame
-            if frame is not None:
-                started_at = time.monotonic()
-                with self._detect_lock:
-                    faces = self.overlay.detect_faces(frame)
-                self._record_owner_presence(faces)
-                self._record_detection(None, faces, started_at=started_at)
-            time.sleep(0.2)
-
-    def _face_detect_loop_device(self, device: int) -> None:
-        while not self._stop_event.is_set():
-            frame = self.runtime.get_frame(device)
-            if frame is not None:
-                started_at = time.monotonic()
-                with self._detect_lock:
-                    faces = self.overlay.detect_faces(frame)
-                tracker = self._trackers_per_cam.get(device)
-                if tracker is not None:
-                    faces = tracker.update(faces)
-                self._record_owner_presence(faces, camera_id=device)
-                self._record_detection(device, faces, started_at=started_at)
-            time.sleep(0.2)
-
     def iter_mjpeg(self, device: int | None = None) -> Any:
         if device is None:
             if self._camera_list:
@@ -848,21 +830,78 @@ class GodModeVideoServer:
         )
         self.stop()
 
+    def _face_detect_worker_centralized(self) -> None:
+        """Centralized worker that batches frames from all cameras for GPU inference."""
+        logger.info("Starting centralized face detection worker (Batch mode)")
+        while not self._stop_event.is_set():
+            active_cameras = self._camera_list
+            if not active_cameras:
+                time.sleep(0.1)
+                continue
+
+            frames_to_process = []
+            camera_ids = []
+            
+            for device in active_cameras:
+                frame = self.runtime.get_frame(device)
+                if frame is not None:
+                    frames_to_process.append(frame)
+                    camera_ids.append(device)
+            
+            if not frames_to_process:
+                time.sleep(0.01)
+                continue
+
+            started_at = time.monotonic()
+            
+            # Batch Inference on GPU
+            try:
+                # Use detect_batch if available, else sequential
+                detector = self.overlay._detector
+                if hasattr(detector, 'detect_batch'):
+                    _, batch_results = detector.detect_batch(frames_to_process)
+                else:
+                    batch_results = [self.overlay.detect_faces(f) for f in frames_to_process]
+                
+                # Process results
+                for i, detections in enumerate(batch_results):
+                    device = camera_ids[i]
+                    if detections is None:
+                        continue
+                        
+                    faces = []
+                    if isinstance(detections, np.ndarray):
+                        # GpuYuNetDetector returns raw ndarray
+                        for row in detections:
+                            faces.append(FaceBox.from_yunet_row(row))
+                    else:
+                        faces = detections # Already FaceBox list
+                    
+                    tracker = self._trackers_per_cam.get(device)
+                    if tracker is not None:
+                        faces = tracker.update(faces)
+                    
+                    self._record_owner_presence(faces, camera_id=device)
+                    self._record_detection(device, faces, started_at=started_at)
+                    
+            except Exception as e:
+                logger.error("Centralized inference error: %s", e)
+                time.sleep(0.1)
+            
+            # Target 60 FPS for the loop
+            elapsed = time.monotonic() - started_at
+            target_period = 1.0 / 60.0
+            if elapsed < target_period:
+                time.sleep(target_period - elapsed)
+
     def _start_face_detection_workers(self) -> None:
         if not self._enable_face_detection:
             self._diagnostics.log_event("face_detection_disabled")
             return
-        if self._camera_list:
-            for device in self._camera_list:
-                self._start_worker(
-                    name=f"face_detect_{device}",
-                    target=self._face_detect_loop_device,
-                    args=(device,),
-                )
-            return
+        
         self._start_worker(
-            name="face_detect",
-            target=self._face_detect_loop,
+            name="face_detect_centralized",
+            target=self._face_detect_worker_centralized,
         )
 
     def _record_http_request(

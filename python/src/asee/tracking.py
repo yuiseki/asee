@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from math import hypot
 from typing import Any
@@ -19,6 +20,22 @@ class FaceBox:
     confidence: float = 1.0
     raw_detection: Any = field(default=None, repr=False)
     id: int = 0
+
+    @classmethod
+    def from_yunet_row(cls, row: Sequence[float]) -> FaceBox:
+        """Create a FaceBox from a YuNet detection row.
+
+        YuNet output format: [x, y, w, h, kps_x1, kps_y1, ..., kps_x5, kps_y5, score]
+        Row has 15 elements; score is at index 14.
+        """
+        return cls(
+            x=int(row[0]),
+            y=int(row[1]),
+            w=int(row[2]),
+            h=int(row[3]),
+            confidence=float(row[14]),
+            raw_detection=row,
+        )
 
     def corners(self) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int], tuple[int, int]]:
         return (

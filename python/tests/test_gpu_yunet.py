@@ -33,6 +33,20 @@ def _make_mock_session(*, provider="CPUExecutionProvider", n_per_scale: int = 0)
         outputs.append(np.zeros((1, n, 10), dtype=np.float32))      # kps
 
     session.run.return_value = outputs
+    
+    # Mock IO Binding support
+    mock_binding = MagicMock()
+    mock_binding.copy_outputs_to_cpu.return_value = outputs
+    session.io_binding.return_value = mock_binding
+    
+    # Mock get_outputs() for binding loop
+    output_metas = []
+    for i in range(12):
+        meta = MagicMock()
+        meta.name = f"output_{i}"
+        output_metas.append(meta)
+    session.get_outputs.return_value = output_metas
+    
     return session
 
 
@@ -81,6 +95,8 @@ class TestGpuYuNetPostprocess:
         det = GpuYuNetDetector.__new__(GpuYuNetDetector)
         det._input_w = 640
         det._input_h = 640
+        det._target_w = 640
+        det._target_h = 640
         det._score_threshold = score_threshold
         det._nms_threshold = nms_threshold
         det._top_k = top_k
@@ -175,6 +191,8 @@ class TestGpuYuNetInterface:
         det._score_threshold = 0.6
         det._nms_threshold = 0.3
         det._top_k = 10
+        det._target_w = 640
+        det._target_h = 640
         det._session = _make_mock_session()
 
         n, detections = det.detect(BLANK_FRAME_640)
@@ -191,6 +209,8 @@ class TestGpuYuNetInterface:
         det._score_threshold = 0.6
         det._nms_threshold = 0.3
         det._top_k = 10
+        det._target_w = 640
+        det._target_h = 640
         det._session = _make_mock_session()
 
         n, _ = det.detect(BLANK_FRAME_640)
@@ -206,8 +226,11 @@ class TestGpuYuNetInterface:
         det._score_threshold = 0.1
         det._nms_threshold = 0.3
         det._top_k = 10
+        det._target_w = 640
+        det._target_h = 640
 
         mock_sess = _make_mock_session()
+
         outputs = list(mock_sess.run.return_value)
         for i in range(3):
             outputs[i] = np.full_like(outputs[i], 0.9)
@@ -234,6 +257,8 @@ class TestGpuYuNetWithPipeline:
         det._score_threshold = 0.6
         det._nms_threshold = 0.3
         det._top_k = 10
+        det._target_w = 640
+        det._target_h = 640
         det._session = _make_mock_session()
 
         classify_fn = MagicMock(return_value=("SUBJECT", 0.5))
@@ -274,3 +299,75 @@ class TestGpuYuNetConstruction:
         n, detections = det.detect(BLANK_FRAME_640)
         assert n == 0
         assert detections is None
+
+    def test_inference_on_1280x720_frame_returns_zero(self):
+        """1280x720 capture frame with 640x640 model must not raise reshape errors."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        model_path = "src/asee/models/face_detection_yunet_2023mar.onnx"
+        det = GpuYuNetDetector(model_path=model_path, input_size=(1280, 720))
+        frame_1280x720 = np.zeros((720, 1280, 3), dtype=np.uint8)
+        n, detections = det.detect(frame_1280x720)
+        assert n == 0
+        assert detections is None
+
+
+class TestGpuYuNetPostprocessWithScaling:
+    """Regression tests for coordinate scaling between target and input spaces."""
+
+    def _make_det_1280x720_capture(self, score_threshold=0.1):
+        """Detector with 1280x720 input size but 640x640 target (model) size."""
+        from asee.gpu_yunet import GpuYuNetDetector
+
+        det = GpuYuNetDetector.__new__(GpuYuNetDetector)
+        det._input_w = 1280
+        det._input_h = 720
+        det._target_w = 640
+        det._target_h = 640
+        det._score_threshold = score_threshold
+        det._nms_threshold = 0.3
+        det._top_k = 10
+        return det
+
+    def test_postprocess_no_reshape_error_with_1280x720_input(self):
+        """_postprocess must not raise when _input_w=1280 but model outputs 640x640."""
+        det = self._make_det_1280x720_capture()
+        # Mock outputs based on actual model size (640x640), NOT capture size
+        sizes = [80 * 80, 40 * 40, 20 * 20]
+        outputs = []
+        for n in sizes:
+            outputs.append(np.full((1, n, 1), 0.9, dtype=np.float32))  # cls high
+        for n in sizes:
+            outputs.append(np.full((1, n, 1), 0.9, dtype=np.float32))  # obj high
+        for n in sizes:
+            outputs.append(np.zeros((1, n, 4), dtype=np.float32))  # bbox
+        for n in sizes:
+            outputs.append(np.zeros((1, n, 10), dtype=np.float32))  # kps
+        # Must not raise ValueError: cannot reshape array of size 6400 into shape (14400,)
+        result = det._postprocess(outputs)
+        assert result is not None
+
+    def test_postprocess_coordinates_scaled_to_input_space(self):
+        """Detected coordinates must be in input (1280x720) space, not model (640x640)."""
+        det = self._make_det_1280x720_capture()
+        # Use outputs for exactly one anchor at stride=8, position (0,0) → cx=4, cy=4
+        # bbox all zeros → x1 = cx*scale_x = 4*2 = 8, y1 = cy*scale_y = 4*1.125 = 4.5
+        sizes = [80 * 80, 40 * 40, 20 * 20]
+        outputs = []
+        # Only stride=8 scale has high scores, others low
+        for i, n in enumerate(sizes):
+            val = 0.9 if i == 0 else 0.01
+            outputs.append(np.full((1, n, 1), val, dtype=np.float32))
+        for i, n in enumerate(sizes):
+            val = 0.9 if i == 0 else 0.01
+            outputs.append(np.full((1, n, 1), val, dtype=np.float32))
+        for n in sizes:
+            outputs.append(np.zeros((1, n, 4), dtype=np.float32))
+        for n in sizes:
+            outputs.append(np.zeros((1, n, 10), dtype=np.float32))
+        result = det._postprocess(outputs)
+        assert result is not None
+        # x coordinates must be in [0, 1280] range (not [0, 640])
+        assert (result[:, 0] <= 1280).all()
+        # y coordinates must be in [0, 720] range (not [0, 640])
+        assert (result[:, 1] <= 720).all()

@@ -73,3 +73,51 @@ def test_face_tracker_drops_track_after_max_lost_frames():
     tracked = tracker.update([])
 
     assert tracked == []
+
+
+# ---------------------------------------------------------------------------
+# FaceBox.from_yunet_row
+# ---------------------------------------------------------------------------
+
+def _make_yunet_row(x=10.0, y=20.0, w=100.0, h=80.0, confidence=0.9):
+    """Build a 15-element YuNet detection row: [x, y, w, h, kps×10, score]."""
+    import numpy as np
+    row = np.zeros(15, dtype=np.float32)
+    row[0] = x
+    row[1] = y
+    row[2] = w
+    row[3] = h
+    row[14] = confidence
+    return row
+
+
+def test_from_yunet_row_creates_face_box():
+    row = _make_yunet_row()
+    face = FaceBox.from_yunet_row(row)
+    assert isinstance(face, FaceBox)
+
+
+def test_from_yunet_row_xywh():
+    row = _make_yunet_row(x=10.0, y=20.0, w=100.0, h=80.0)
+    face = FaceBox.from_yunet_row(row)
+    assert face.x == 10
+    assert face.y == 20
+    assert face.w == 100
+    assert face.h == 80
+
+
+def test_from_yunet_row_confidence():
+    row = _make_yunet_row(confidence=0.85)
+    face = FaceBox.from_yunet_row(row)
+    assert abs(face.confidence - 0.85) < 1e-5
+
+
+def test_from_yunet_row_preserves_raw_detection():
+    row = _make_yunet_row()
+    face = FaceBox.from_yunet_row(row)
+    assert face.raw_detection is row
+
+
+def test_from_yunet_row_default_label_is_subject():
+    face = FaceBox.from_yunet_row(_make_yunet_row())
+    assert face.label == "SUBJECT"

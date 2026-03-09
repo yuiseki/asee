@@ -11,6 +11,7 @@ Output format matches ``cv2.FaceDetectorYN.detect()`` exactly:
 
 from __future__ import annotations
 
+import logging
 import math
 
 import cv2
@@ -22,14 +23,16 @@ import torch.nn.functional as F
 from typing import TYPE_CHECKING, TypeAlias
 
 if TYPE_CHECKING:
-    import onnxruntime as ort
+    import onnxruntime as ort  # type: ignore[import-untyped]
 
 try:
-    import onnxruntime as ort  # type: ignore
+    import onnxruntime as ort
 
     _ORT_AVAILABLE = True
 except ImportError:
     _ORT_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 FrameArray: TypeAlias = npt.NDArray[np.uint8]
 DetectionArray: TypeAlias = npt.NDArray[np.float32]
@@ -78,7 +81,7 @@ class GpuYuNetDetector:
         self._top_k = top_k
         self._input_w, self._input_h = input_size
 
-        providers: list[str | tuple[str, dict]] = [
+        providers: list[str | tuple[str, dict[str, object]]] = [
             (
                 "CUDAExecutionProvider",
                 {
@@ -98,6 +101,15 @@ class GpuYuNetDetector:
             model_path, sess_options=options, providers=providers
         )
 
+        # Inspect actual model input shape to ensure correct resizing
+        input_meta = self._session.get_inputs()[0]
+        shape = input_meta.shape # e.g. [1, 3, 640, 640]
+        # YuNet models often have fixed 640x640 or dynamic shapes.
+        # If static, use the model's dimensions. If dynamic, use requested input_size.
+        self._target_h = shape[2] if isinstance(shape[2], int) else self._input_h
+        self._target_w = shape[3] if isinstance(shape[3], int) else self._input_w
+        logger.info("GpuYuNetDetector: target inference size set to %dx%d", self._target_w, self._target_h)
+
     # ------------------------------------------------------------------
     # Public interface – matches cv2.FaceDetectorYN
     # ------------------------------------------------------------------
@@ -106,7 +118,7 @@ class GpuYuNetDetector:
     def active_provider(self) -> str:
         """Return the first active execution provider."""
         providers = self._session.get_providers()
-        return providers[0] if providers else "Unknown"
+        return str(providers[0]) if providers else "Unknown"
 
     def setInputSize(self, size: tuple[int, int]) -> None:  # noqa: N802
         """Update (width, height) that the model will be run at."""
@@ -119,47 +131,58 @@ class GpuYuNetDetector:
     def detect(
         self, frame: FrameArray
     ) -> tuple[int, DetectionArray | None]:
-        """Run detection on *frame* and return (n, detections).
+        """Run detection on a single *frame*."""
+        n, results = self.detect_batch([frame])
+        return n, results[0] if results else None
 
-        Compatible with ``cv2.FaceDetectorYN.detect()``.
-        """
+    def detect_batch(
+        self, frames: list[FrameArray]
+    ) -> tuple[int, list[DetectionArray | None]]:
+        """Run sequential detection on multiple *frames* using GPU with IO Binding."""
+        if not frames:
+            return 0, []
+
+        batch_size = len(frames)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
+        final_results: list[DetectionArray | None] = []
+        total_detections = 0
+        
         with torch.no_grad():
-            # 1. Preprocess on GPU
-            # Upload to GPU
-            t = torch.from_numpy(frame).to(device).float()
-            # HWC -> BCHW
-            t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
-            
-            # Resize on GPU
-            if t.shape[2] != self._input_h or t.shape[3] != self._input_w:
-                t = F.interpolate(t, size=(self._input_h, self._input_w), mode='bilinear', align_corners=False)
-            
-            # 2. IO Binding for zero-copy input
-            io_binding = self._session.io_binding()
-            io_binding.bind_input(
-                name="input",
-                device_type=device.type,
-                device_id=device.index or 0,
-                element_type=np.float32,
-                shape=t.shape,
-                buffer_ptr=t.data_ptr(),
-            )
-            
-            # Bind outputs to CPU for existing postprocess (to keep logic simple for now)
-            for output in self._session.get_outputs():
-                io_binding.bind_output(output.name)
-            
-            # 3. Run
-            self._session.run_with_iobinding(io_binding)
-            outputs = io_binding.copy_outputs_to_cpu()
-            
-            # 4. Postprocess
-            detections = self._postprocess(outputs)
-            if detections is None or len(detections) == 0:
-                return 0, None
-            return len(detections), detections
+            for frame in frames:
+                # 1. Preprocess on GPU
+                t = torch.from_numpy(frame).to(device).float()
+                t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
+                
+                # Resize on GPU to actual model target size
+                if t.shape[2] != self._target_h or t.shape[3] != self._target_w:
+                    t = F.interpolate(t, size=(self._target_h, self._target_w), mode='bilinear', align_corners=False)
+                    t = t.contiguous() # Ensure memory is contiguous after resize
+                
+                # 2. IO Binding for this single frame
+                io_binding = self._session.io_binding()
+                io_binding.bind_input(
+                    name="input",
+                    device_type=device.type,
+                    device_id=device.index or 0,
+                    element_type=np.float32,
+                    shape=t.shape,
+                    buffer_ptr=t.data_ptr(),
+                )
+                for output in self._session.get_outputs():
+                    io_binding.bind_output(output.name)
+                
+                # 3. Run
+                self._session.run_with_iobinding(io_binding)
+                outputs = io_binding.copy_outputs_to_cpu()
+                
+                # 4. Postprocess
+                detections = self._postprocess(outputs)
+                if detections is not None:
+                    total_detections += len(detections)
+                final_results.append(detections)
+                
+            return total_detections, final_results
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -196,9 +219,16 @@ class GpuYuNetDetector:
         all_scores: list[npt.NDArray[np.float32]] = []
         all_kps: list[npt.NDArray[np.float32]] = []
 
+        # Scale factors to map model-output coordinates back to capture space.
+        # When input_size equals target_size the factors are 1.0 (no change).
+        scale_x = self._input_w / self._target_w
+        scale_y = self._input_h / self._target_h
+
         for i, stride in enumerate(_STRIDES):
-            cols = math.ceil(self._input_w / stride)
-            n_rows = math.ceil(self._input_h / stride)
+            # Use actual model target size for feature-map grid, NOT the capture size.
+            # The model always outputs a fixed grid matching _target_w/_target_h.
+            cols = math.ceil(self._target_w / stride)
+            n_rows = math.ceil(self._target_h / stride)
             n = n_rows * cols
 
             cls = outputs[i][0].reshape(n)       # [n]
@@ -212,24 +242,24 @@ class GpuYuNetDetector:
             if not np.any(mask):
                 continue
 
-            # Generate anchor centers (columns vary fastest)
+            # Generate anchor centers in model target space (columns vary fastest)
             y_idx = np.repeat(np.arange(n_rows), cols).astype(np.float32)
             x_idx = np.tile(np.arange(cols), n_rows).astype(np.float32)
             cx = (x_idx + 0.5) * stride
             cy = (y_idx + 0.5) * stride
 
-            # Decode bounding boxes
-            x1 = cx - bbox[:, 0] * stride
-            y1 = cy - bbox[:, 1] * stride
-            x2 = cx + bbox[:, 2] * stride
-            y2 = cy + bbox[:, 3] * stride
+            # Decode bounding boxes in target space, then scale to capture space
+            x1 = (cx - bbox[:, 0] * stride) * scale_x
+            y1 = (cy - bbox[:, 1] * stride) * scale_y
+            x2 = (cx + bbox[:, 2] * stride) * scale_x
+            y2 = (cy + bbox[:, 3] * stride) * scale_y
             w_box = np.clip(x2 - x1, 0.0, None)
             h_box = np.clip(y2 - y1, 0.0, None)
 
-            # Decode keypoints
+            # Decode keypoints in target space, then scale to capture space
             kps_dec = np.empty_like(kps_raw)
-            kps_dec[:, 0::2] = cx[:, np.newaxis] + kps_raw[:, 0::2] * stride
-            kps_dec[:, 1::2] = cy[:, np.newaxis] + kps_raw[:, 1::2] * stride
+            kps_dec[:, 0::2] = (cx[:, np.newaxis] + kps_raw[:, 0::2] * stride) * scale_x
+            kps_dec[:, 1::2] = (cy[:, np.newaxis] + kps_raw[:, 1::2] * stride) * scale_y
 
             boxes_xywh = np.stack(
                 [x1[mask], y1[mask], w_box[mask], h_box[mask]], axis=1
