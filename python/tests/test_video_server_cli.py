@@ -218,13 +218,13 @@ def test_build_arg_parser_accepts_detection_backend_onnxruntime() -> None:
     assert args.detection_backend == "onnxruntime"
 
 
-def test_build_arg_parser_detection_backend_default_is_opencv() -> None:
-    """--detection-backend must default to 'opencv'."""
+def test_build_arg_parser_detection_backend_default_is_onnxruntime() -> None:
+    """--detection-backend must default to 'onnxruntime'."""
     from asee.video_server import build_arg_parser
 
     parser = build_arg_parser()
     args = parser.parse_args([])
-    assert args.detection_backend == "opencv"
+    assert args.detection_backend == "onnxruntime"
 
 
 def test_build_server_from_args_passes_detection_backend_to_server() -> None:

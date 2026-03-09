@@ -251,8 +251,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--detection-backend",
         choices=["opencv", "onnxruntime"],
-        default="opencv",
-        help="顔検出バックエンド: opencv (既定) または onnxruntime (CUDA GPU 推論)",
+        default="onnxruntime",
+        help="顔検出バックエンド: onnxruntime (既定, CUDA GPU 推論) または opencv (CPU)",
     )
     return parser
 
@@ -336,7 +336,7 @@ class GodModeVideoServer:
         auto_shutdown_sec: float = 0.0,
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
-        detection_backend: str = "opencv",
+        detection_backend: str = "onnxruntime",
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
