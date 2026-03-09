@@ -151,7 +151,10 @@ class GpuYuNetDetector:
         with torch.no_grad():
             for frame in frames:
                 # 1. Preprocess on GPU
-                t = torch.from_numpy(frame).to(device).float()
+                # Divide by 255.0: cv2.FaceDetectorYN internally normalises via
+                # blobFromImage(scalefactor=1/255), so the YuNet ONNX model
+                # expects input values in [0, 1].
+                t = torch.from_numpy(frame).to(device).float() / 255.0
                 t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
                 
                 # Resize on GPU to actual model target size
