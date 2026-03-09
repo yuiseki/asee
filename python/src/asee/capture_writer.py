@@ -52,6 +52,11 @@ class FaceCaptureWriter:
 
     def _today_dir(self) -> Path:
         now = datetime.now()
+        # 分単位まで同じなら、既に作成済みとみなす（簡易キャッシュ）
+        current_minute = now.strftime("%Y%m%d%H%M")
+        if hasattr(self, "_last_dir_minute") and self._last_dir_minute == current_minute:
+            return self._current_today_dir
+
         today_dir = (
             self._root
             / now.strftime("%Y")
@@ -61,6 +66,9 @@ class FaceCaptureWriter:
             / now.strftime("%M")
         )
         today_dir.mkdir(parents=True, exist_ok=True)
+        
+        self._last_dir_minute = current_minute
+        self._current_today_dir = today_dir
         return today_dir
 
     def _refresh_cache(self) -> None:
@@ -91,6 +99,11 @@ class FaceCaptureWriter:
     def save(self, image: Any, score: float) -> bool:
         if image is None:
             return False
+        
+        # 上限に達している場合は、一定時間（TTL）経過するまで重いチェックをスキップ
+        if self._limit_hit and (time() - self._cache_time < self._CACHE_TTL):
+            return False
+
         image_size = getattr(image, "size", None)
         if isinstance(image_size, int) and image_size <= 0:
             return False
