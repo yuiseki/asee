@@ -871,9 +871,14 @@ class GodModeVideoServer:
                         
                     faces = []
                     if isinstance(detections, np.ndarray):
-                        # GpuYuNetDetector returns raw ndarray
+                        # GpuYuNetDetector returns raw ndarray; run SFace label classification
+                        source_frame = frames_to_process[i]
                         for row in detections:
-                            faces.append(FaceBox.from_yunet_row(row))
+                            face_box = FaceBox.from_yunet_row(row)
+                            face_box.label, face_box.confidence = self.overlay._classify_label(
+                                source_frame, face_box
+                            )
+                            faces.append(face_box)
                     else:
                         faces = detections # Already FaceBox list
                     
