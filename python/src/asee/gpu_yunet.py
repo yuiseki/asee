@@ -151,10 +151,9 @@ class GpuYuNetDetector:
         with torch.no_grad():
             for frame in frames:
                 # 1. Preprocess on GPU
-                # Divide by 255.0: cv2.FaceDetectorYN internally normalises via
-                # blobFromImage(scalefactor=1/255), so the YuNet ONNX model
-                # expects input values in [0, 1].
-                t = torch.from_numpy(frame).to(device).float() / 255.0
+                # YuNet expects raw [0, 255] float32 values – same as
+                # cv2.FaceDetectorYN which calls blobFromImage(scalefactor=1.0).
+                t = torch.from_numpy(frame).to(device).float()
                 t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
                 
                 # Resize on GPU to actual model target size
@@ -206,17 +205,23 @@ class GpuYuNetDetector:
             [6-8]  bbox_8 / bbox_16 / bbox_32 – shape [1, n, 4], raw
             [9-11] kps_8 / kps_16 / kps_32   – shape [1, n, 10], raw
 
-        Box decoding (FCOS / NanoDet distance-based):
-            x1 = anchor_cx - bbox[:, 0] * stride
-            y1 = anchor_cy - bbox[:, 1] * stride
-            x2 = anchor_cx + bbox[:, 2] * stride
-            y2 = anchor_cy + bbox[:, 3] * stride
+        Box decoding (NanoDet / CenterPoint style: [dx, dy, log_w, log_h]):
+            anchor_cx = x_idx * stride           (no 0.5 offset)
+            anchor_cy = y_idx * stride
+            center_x  = anchor_cx + bbox[:, 0] * stride
+            center_y  = anchor_cy + bbox[:, 1] * stride
+            w         = exp(bbox[:, 2]) * stride
+            h         = exp(bbox[:, 3]) * stride
+            x1        = center_x - w / 2
+            y1        = center_y - h / 2
 
         Keypoint decoding:
             kps_x = anchor_cx + kps[:, 2*i]   * stride
             kps_y = anchor_cy + kps[:, 2*i+1] * stride
 
         Score: geometric mean sqrt(cls * obj).
+
+        Note: empirically verified against cv2.FaceDetectorYN on face_detection_yunet_2023mar.onnx.
         """
         all_boxes: list[npt.NDArray[np.float32]] = []
         all_scores: list[npt.NDArray[np.float32]] = []
@@ -245,21 +250,24 @@ class GpuYuNetDetector:
             if not np.any(mask):
                 continue
 
-            # Generate anchor centers in model target space (columns vary fastest)
+            # Anchor positions: grid corners (no 0.5 offset), rows vary slowest
             y_idx = np.repeat(np.arange(n_rows), cols).astype(np.float32)
             x_idx = np.tile(np.arange(cols), n_rows).astype(np.float32)
-            cx = (x_idx + 0.5) * stride
-            cy = (y_idx + 0.5) * stride
+            cx = x_idx * stride   # anchor top-left x in model space
+            cy = y_idx * stride   # anchor top-left y in model space
 
-            # Decode bounding boxes in target space, then scale to capture space
-            x1 = (cx - bbox[:, 0] * stride) * scale_x
-            y1 = (cy - bbox[:, 1] * stride) * scale_y
-            x2 = (cx + bbox[:, 2] * stride) * scale_x
-            y2 = (cy + bbox[:, 3] * stride) * scale_y
-            w_box = np.clip(x2 - x1, 0.0, None)
-            h_box = np.clip(y2 - y1, 0.0, None)
+            # Decode bounding boxes: [dx, dy, log_w, log_h] format
+            # center predicted = anchor + delta * stride; size = exp(log_size) * stride
+            xc = (cx + bbox[:, 0] * stride) * scale_x
+            yc = (cy + bbox[:, 1] * stride) * scale_y
+            w_box = np.exp(bbox[:, 2]) * stride * scale_x
+            h_box = np.exp(bbox[:, 3]) * stride * scale_y
+            x1 = xc - w_box / 2.0
+            y1 = yc - h_box / 2.0
+            w_box = np.clip(w_box, 0.0, None)
+            h_box = np.clip(h_box, 0.0, None)
 
-            # Decode keypoints in target space, then scale to capture space
+            # Decode keypoints: linear delta from anchor
             kps_dec = np.empty_like(kps_raw)
             kps_dec[:, 0::2] = (cx[:, np.newaxis] + kps_raw[:, 0::2] * stride) * scale_x
             kps_dec[:, 1::2] = (cy[:, np.newaxis] + kps_raw[:, 1::2] * stride) * scale_y
