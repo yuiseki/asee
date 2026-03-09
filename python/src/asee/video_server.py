@@ -27,6 +27,7 @@ except ImportError:
     _TurboJPEG = None
     _TURBOJPEG_AVAILABLE = False
 
+from .detection_runtime import to_square, YunetDetectionPipeline
 from .diagnostics import (
     DiagnosticsLogger,
     JsonlDiagnosticsLogger,
@@ -873,8 +874,23 @@ class GodModeVideoServer:
                     if isinstance(detections, np.ndarray):
                         # GpuYuNetDetector returns raw ndarray; run SFace label classification
                         source_frame = frames_to_process[i]
+                        frame_h, frame_w = source_frame.shape[:2]
                         for row in detections:
-                            face_box = FaceBox.from_yunet_row(row)
+                            # Original detected box
+                            rx, ry, rw, rh = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+                            # Expand to square (consistent with legacy OpenCV pipeline)
+                            sq_x, sq_y, sq_w, sq_h = to_square(
+                                rx, ry, rw, rh, frame_w=frame_w, frame_h=frame_h
+                            )
+                            
+                            face_box = FaceBox(
+                                x=sq_x,
+                                y=sq_y,
+                                w=sq_w,
+                                h=sq_h,
+                                confidence=float(row[14]),
+                                raw_detection=row,
+                            )
                             face_box.label, face_box.confidence = self.overlay._classify_label(
                                 source_frame, face_box
                             )
