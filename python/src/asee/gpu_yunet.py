@@ -16,6 +16,8 @@ import math
 import cv2
 import numpy as np
 import numpy.typing as npt
+import torch
+import torch.nn.functional as F
 
 from typing import TYPE_CHECKING, TypeAlias
 
@@ -121,27 +123,51 @@ class GpuYuNetDetector:
 
         Compatible with ``cv2.FaceDetectorYN.detect()``.
         """
-        blob = self._preprocess(frame)
-        outputs = self._session.run(None, {"input": blob})
-        detections = self._postprocess(outputs)
-        if detections is None or len(detections) == 0:
-            return 0, None
-        return len(detections), detections
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        with torch.no_grad():
+            # 1. Preprocess on GPU
+            # Upload to GPU
+            t = torch.from_numpy(frame).to(device).float()
+            # HWC -> BCHW
+            t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
+            
+            # Resize on GPU
+            if t.shape[2] != self._input_h or t.shape[3] != self._input_w:
+                t = F.interpolate(t, size=(self._input_h, self._input_w), mode='bilinear', align_corners=False)
+            
+            # 2. IO Binding for zero-copy input
+            io_binding = self._session.io_binding()
+            io_binding.bind_input(
+                name="input",
+                device_type=device.type,
+                device_id=device.index or 0,
+                element_type=np.float32,
+                shape=t.shape,
+                buffer_ptr=t.data_ptr(),
+            )
+            
+            # Bind outputs to CPU for existing postprocess (to keep logic simple for now)
+            for output in self._session.get_outputs():
+                io_binding.bind_output(output.name)
+            
+            # 3. Run
+            self._session.run_with_iobinding(io_binding)
+            outputs = io_binding.copy_outputs_to_cpu()
+            
+            # 4. Postprocess
+            detections = self._postprocess(outputs)
+            if detections is None or len(detections) == 0:
+                return 0, None
+            return len(detections), detections
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _preprocess(self, frame: FrameArray) -> npt.NDArray[np.float32]:
-        """Resize and convert BGR frame to ``[1, 3, H, W]`` float32 blob."""
-        h, w = frame.shape[:2]
-        processed_frame = frame
-        if w != self._input_w or h != self._input_h:
-            processed_frame = cv2.resize(frame, (self._input_w, self._input_h))
-        blob = processed_frame.astype(np.float32)
-        blob = blob.transpose(2, 0, 1)  # HWC → CHW
-        blob = blob[np.newaxis, :]      # CHW → 1CHW
-        return blob
+        """Legacy helper, logic moved into detect() for IO binding."""
+        return np.zeros((1, 3, self._input_h, self._input_w), dtype=np.float32)
 
     def _postprocess(
         self, outputs: list[npt.NDArray[np.float32]]

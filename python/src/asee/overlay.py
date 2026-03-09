@@ -125,6 +125,17 @@ class GodModeOverlay:
             if subject_capture_dir is not None
             else None
         )
+        self._grid_overlay = self._create_grid_overlay(width, height)
+
+    def _create_grid_overlay(self, width: int, height: int) -> FrameArray:
+        """Create a static grid overlay image."""
+        grid = np.zeros((height, width, 3), dtype=np.uint8)
+        step = 80
+        for x in range(0, width, step):
+            cv2.line(grid, (x, 0), (x, height), COLOR_CYAN, 1)
+        for y in range(0, height, step):
+            cv2.line(grid, (0, y), (width, y), COLOR_CYAN, 1)
+        return grid
 
     def set_caption(self, text: str) -> None:
         self.caption = text
@@ -190,14 +201,17 @@ class GodModeOverlay:
         smooth: bool = True,
     ) -> np.ndarray:
         del frame_count
-        output = frame.copy()
-        frame_h, frame_w = output.shape[:2]
+        # Draw on a copy to keep the original frame clean
+        output = cv2.addWeighted(frame, 0.96, self._grid_overlay, 0.04, 0)
         visible_faces = self.smooth_faces(face_boxes or []) if smooth else (face_boxes or [])
 
-        self._draw_grid(output, frame_w, frame_h)
         for face_box in visible_faces:
             self._draw_face_box(output, face_box)
         return output
+
+    def _draw_grid(self, image: FrameArray, width: int, height: int) -> None:
+        """Legacy method, now handled by self._grid_overlay."""
+        pass
 
     def _load_yunet(self, path: str, width: int, height: int) -> Any:
         if not os.path.exists(path):

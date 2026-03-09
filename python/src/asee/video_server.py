@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import werkzeug.serving
+from turbojpeg import TurboJPEG
 
 from .diagnostics import (
     DiagnosticsLogger,
@@ -69,13 +70,21 @@ class CameraRuntimeStats:
     last_detection_log_at: float = 0.0
 
 
+jpeg_encoder = TurboJPEG()
+
+
 def encode_frame_to_jpeg(frame: FrameArray, quality: int = 70) -> bytes:
-    """Encode a frame into a JPEG payload."""
-    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-    ok, buffer = cv2.imencode(".jpg", frame, encode_param)
-    if not ok:
-        raise RuntimeError("JPEG encode failed")
-    return buffer.tobytes()
+    """Encode a frame into a JPEG payload using TurboJPEG."""
+    try:
+        # TurboJPEG is significantly faster than cv2.imencode
+        return cast(bytes, jpeg_encoder.encode(frame, quality=quality))
+    except Exception as e:
+        logger.error("TurboJPEG encode failed: %s, falling back to OpenCV", e)
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        ok, buffer = cv2.imencode(".jpg", frame, encode_param)
+        if not ok:
+            raise RuntimeError("JPEG encode failed") from e
+        return buffer.tobytes()
 
 
 def decode_fourcc_value(value: float) -> str:
