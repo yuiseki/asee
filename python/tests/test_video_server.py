@@ -518,6 +518,102 @@ class TestGodModeVideoServer:
             }
         ]
 
+    def test_get_or_build_mjpeg_chunk_reuses_cached_render_until_revision_changes(self) -> None:
+        server = GodModeVideoServer(
+            port=188791,
+            device_index=None,
+            camera_list=[4],
+            allow_live_camera=True,
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        server.update_frame(frame, camera_id=4)
+        server._record_owner_presence(
+            [FaceBox(x=30, y=40, w=50, h=60, label="OWNER")],
+            camera_id=4,
+        )
+
+        with (
+            patch.object(server.overlay, "draw", side_effect=lambda image, **_: image) as draw,
+            patch("asee.video_server.encode_frame_to_jpeg", return_value=b"jpeg-1") as encode,
+        ):
+            first = server._get_or_build_mjpeg_chunk(camera_id=4)
+            second = server._get_or_build_mjpeg_chunk(camera_id=4)
+
+        assert first == second
+        assert first == b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg-1\r\n"
+        draw.assert_called_once()
+        encode.assert_called_once()
+
+    def test_update_frame_invalidates_cached_mjpeg_chunk(self) -> None:
+        server = GodModeVideoServer(
+            port=188792,
+            device_index=None,
+            camera_list=[4],
+            allow_live_camera=True,
+        )
+        first_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        second_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        second_frame[0, 0, 0] = 255
+        server.update_frame(first_frame, camera_id=4)
+
+        with (
+            patch.object(server.overlay, "draw", side_effect=lambda image, **_: image) as draw,
+            patch(
+                "asee.video_server.encode_frame_to_jpeg",
+                side_effect=[b"jpeg-1", b"jpeg-2"],
+            ) as encode,
+        ):
+            first = server._get_or_build_mjpeg_chunk(camera_id=4)
+            server.update_frame(second_frame, camera_id=4)
+            second = server._get_or_build_mjpeg_chunk(camera_id=4)
+
+        assert first == b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg-1\r\n"
+        assert second == b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg-2\r\n"
+        assert draw.call_count == 2
+        assert encode.call_count == 2
+
+    def test_generate_mjpeg_device_waits_for_new_revision_before_emitting_next_chunk(self) -> None:
+        server = GodModeVideoServer(
+            port=188793,
+            device_index=None,
+            camera_list=[4],
+            allow_live_camera=True,
+        )
+        first_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        second_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        second_frame[0, 0, 0] = 255
+        server.update_frame(first_frame, camera_id=4)
+
+        with (
+            patch.object(server.overlay, "draw", side_effect=lambda image, **_: image),
+            patch(
+                "asee.video_server.encode_frame_to_jpeg",
+                side_effect=[b"jpeg-1", b"jpeg-2"],
+            ),
+        ):
+            generator = server._generate_mjpeg_device(4)
+            first = next(generator)
+
+            result: dict[str, bytes] = {}
+
+            def read_next_chunk() -> None:
+                result["chunk"] = next(generator)
+
+            thread = threading.Thread(target=read_next_chunk, daemon=True)
+            thread.start()
+
+            time.sleep(0.1)
+            assert "chunk" not in result
+
+            server.update_frame(second_frame, camera_id=4)
+
+            assert wait_until(lambda: "chunk" in result)
+            thread.join(timeout=1.0)
+
+        server.stop()
+        assert first == b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg-1\r\n"
+        assert result["chunk"] == b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg-2\r\n"
+
     def test_http_cameras_endpoint_returns_camera_ids(self) -> None:
         server = GodModeVideoServer(
             port=18880,

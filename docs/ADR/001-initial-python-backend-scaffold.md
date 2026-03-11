@@ -55,6 +55,7 @@ Accepted
   - `encode_frame_to_jpeg()`
   - camera-less and single-camera HTTP compatibility behavior
   - MJPG camera-open policy and frame normalization helpers
+  - per-camera latest-only MJPEG chunk caching so multiple viewer clients share overlay/JPEG work
 - the ninth extracted slice rebuilds OWNER enrollment inside `asee.enroll_owner`
   - server snapshot fetch
   - direct camera fallback

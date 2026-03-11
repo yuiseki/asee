@@ -136,6 +136,7 @@ python3 -m venv .venv
   - `CaptureSettings`
   - `decode_fourcc_value()`
   - `encode_frame_to_jpeg()`
+  - per-camera latest-only MJPEG chunk cache so multiple viewers reuse overlay/JPEG work
   - `resolve_opencv_threads()`
   - `resolve_capture_settings()`
   - no-camera-safe HTTP compatibility server on top of extracted modules

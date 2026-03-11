@@ -20,14 +20,14 @@ import numpy.typing as npt
 import werkzeug.serving
 
 try:
-    from turbojpeg import TurboJPEG as _TurboJPEG  # type: ignore[import-not-found]
+    from turbojpeg import TurboJPEG as _TurboJPEG  # type: ignore[import-untyped]
 
     _TURBOJPEG_AVAILABLE = True
 except ImportError:
     _TurboJPEG = None
     _TURBOJPEG_AVAILABLE = False
 
-from .detection_runtime import to_square, YunetDetectionPipeline
+from .detection_runtime import to_square
 from .diagnostics import (
     DiagnosticsLogger,
     JsonlDiagnosticsLogger,
@@ -76,6 +76,14 @@ class CameraRuntimeStats:
     last_detection_at: float | None = None
     last_capture_log_at: float = 0.0
     last_detection_log_at: float = 0.0
+
+
+@dataclass(slots=True)
+class MjpegChunkCacheEntry:
+    """Cached MJPEG chunk for a specific stream revision."""
+
+    revision: int = -1
+    chunk: bytes | None = None
 
 
 jpeg_encoder = _TurboJPEG() if _TURBOJPEG_AVAILABLE else None
@@ -422,6 +430,15 @@ class GodModeVideoServer:
             device: CameraRuntimeStats() for device in self._camera_list
         }
         self._single_camera_stats = CameraRuntimeStats()
+        self._stream_state_lock = threading.Lock()
+        self._stream_state_changed = threading.Condition(self._stream_state_lock)
+        self._stream_revisions: dict[int | None, int] = {None: 0}
+        self._mjpeg_chunk_cache: dict[int | None, MjpegChunkCacheEntry] = {
+            None: MjpegChunkCacheEntry()
+        }
+        for device in self._camera_list:
+            self._stream_revisions[device] = 0
+            self._mjpeg_chunk_cache[device] = MjpegChunkCacheEntry()
         self._app = create_http_app(self.runtime, request_logger=self._record_http_request)
         self._load_owner_embedding(owner_embedding_path)
 
@@ -437,9 +454,11 @@ class GodModeVideoServer:
             self.runtime.update_frame(frame, camera_id=resolved_camera_id)
             if resolved_camera_id is not None:
                 self._multi_frames[resolved_camera_id] = frame
+        self._invalidate_mjpeg_stream(resolved_camera_id)
 
     def update_overlay_text(self, *, caption: str = "", prediction: str = "") -> None:
         self.runtime.update_overlay_text(caption=caption, prediction=prediction)
+        self._invalidate_all_mjpeg_streams()
 
     def get_biometric_status(self) -> dict[str, bool | int | float | None]:
         self.runtime.set_running(self.is_running)
@@ -475,6 +494,7 @@ class GodModeVideoServer:
                     self._face_boxes_per_cam[resolved_camera_id] = list(faces)
 
         self.runtime.record_faces(faces, camera_id=resolved_camera_id)
+        self._invalidate_mjpeg_stream(resolved_camera_id)
 
     def start(self) -> None:
         self._stop_event.clear()
@@ -566,6 +586,8 @@ class GodModeVideoServer:
     def stop(self) -> None:
         self._diagnostics.log_event("server_stop_requested")
         self._stop_event.set()
+        with self._stream_state_changed:
+            self._stream_state_changed.notify_all()
 
     def switch_camera(self, device_index: int) -> None:
         """Request a camera switch for the single-camera capture loop."""
@@ -713,63 +735,119 @@ class GodModeVideoServer:
         return self._generate_mjpeg_device(device)
 
     def _generate_mjpeg(self) -> Any:
-        while not self._stop_event.is_set():
-            frame = self.current_frame
-            if frame is None:
-                time.sleep(0.05)
-                continue
-
-            with self._face_lock:
-                face_boxes = list(self._face_boxes)
-
-            self._frame_count += 1
-            processed = self.overlay.draw(
-                frame.copy(),
-                frame_count=self._frame_count,
-                face_boxes=face_boxes,
-            )
-            try:
-                jpeg = encode_frame_to_jpeg(processed, quality=70)
-            except RuntimeError:
-                continue
-
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-            )
-            time.sleep(1 / 15)
+        yield from self._generate_mjpeg_stream(camera_id=None)
 
     def _generate_mjpeg_device(self, device: int) -> Any:
+        yield from self._generate_mjpeg_stream(camera_id=device)
+
+    def _generate_mjpeg_stream(self, *, camera_id: int | None) -> Any:
+        last_revision = -1
         while not self._stop_event.is_set():
-            frame = self.runtime.get_frame(device)
-            if frame is None:
-                time.sleep(0.05)
-                continue
-
-            face_lock = self._face_locks_per_cam.get(device)
-            if face_lock is None:
-                face_boxes: list[FaceBox] = []
-            else:
-                with face_lock:
-                    face_boxes = list(self._face_boxes_per_cam.get(device, []))
-
-            self._frame_count += 1
-            processed = self.overlay.draw(
-                frame.copy(),
-                frame_count=self._frame_count,
-                face_boxes=face_boxes,
-                smooth=False,
+            revision = self._wait_for_mjpeg_stream_revision(
+                camera_id=camera_id,
+                after_revision=last_revision,
             )
+            if revision == last_revision:
+                continue
+            last_revision = revision
+            chunk = self._get_or_build_mjpeg_chunk(camera_id=camera_id)
+            if chunk is None:
+                continue
+            yield chunk
+
+    def _invalidate_mjpeg_stream(self, camera_id: int | None) -> None:
+        key = camera_id
+        with self._stream_state_changed:
+            if key not in self._stream_revisions:
+                self._stream_revisions[key] = 0
+                self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry()
+            self._stream_revisions[key] += 1
+            self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry()
+            self._stream_state_changed.notify_all()
+
+    def _invalidate_all_mjpeg_streams(self) -> None:
+        with self._stream_state_changed:
+            for key in tuple(self._stream_revisions):
+                self._stream_revisions[key] += 1
+                self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry()
+            self._stream_state_changed.notify_all()
+
+    def _wait_for_mjpeg_stream_revision(
+        self,
+        *,
+        camera_id: int | None,
+        after_revision: int,
+        timeout: float = 0.1,
+    ) -> int:
+        key = camera_id
+        with self._stream_state_changed:
+            if key not in self._stream_revisions:
+                self._stream_revisions[key] = 0
+                self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry()
+            self._stream_state_changed.wait_for(
+                lambda: self._stop_event.is_set()
+                or self._stream_revisions[key] != after_revision,
+                timeout=timeout,
+            )
+            return self._stream_revisions[key]
+
+    def _get_or_build_mjpeg_chunk(self, *, camera_id: int | None) -> bytes | None:
+        key = camera_id
+        while not self._stop_event.is_set():
+            with self._stream_state_changed:
+                if key not in self._stream_revisions:
+                    self._stream_revisions[key] = 0
+                    self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry()
+                revision = self._stream_revisions[key]
+                cached = self._mjpeg_chunk_cache[key]
+                if cached.revision == revision and cached.chunk is not None:
+                    return cached.chunk
+
+            frame = self.current_frame if camera_id is None else self.runtime.get_frame(camera_id)
+            if frame is None:
+                return None
+
+            face_boxes = self._current_face_boxes(camera_id=camera_id)
+            self._frame_count += 1
+            if camera_id is None:
+                processed = self.overlay.draw(
+                    frame.copy(),
+                    frame_count=self._frame_count,
+                    face_boxes=face_boxes,
+                )
+            else:
+                processed = self.overlay.draw(
+                    frame.copy(),
+                    frame_count=self._frame_count,
+                    face_boxes=face_boxes,
+                    smooth=False,
+                )
             try:
                 jpeg = encode_frame_to_jpeg(processed, quality=70)
             except RuntimeError:
-                continue
+                return None
 
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-            )
-            time.sleep(1 / 15)
+            chunk = b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+            with self._stream_state_changed:
+                current_revision = self._stream_revisions.get(key, revision)
+                if current_revision != revision:
+                    continue
+                self._mjpeg_chunk_cache[key] = MjpegChunkCacheEntry(
+                    revision=revision,
+                    chunk=chunk,
+                )
+                return chunk
+        return None
+
+    def _current_face_boxes(self, *, camera_id: int | None) -> list[FaceBox]:
+        if camera_id is None:
+            with self._face_lock:
+                return list(self._face_boxes)
+        face_lock = self._face_locks_per_cam.get(camera_id)
+        if face_lock is None:
+            return []
+        with face_lock:
+            return list(self._face_boxes_per_cam.get(camera_id, []))
 
     def _configure_fault_handler(self) -> None:
         stream = self._diagnostics.open_fault_handler_stream()
@@ -859,28 +937,42 @@ class GodModeVideoServer:
             try:
                 # Use detect_batch if available, else sequential
                 detector = self.overlay._detector
-                if hasattr(detector, 'detect_batch'):
+                if hasattr(detector, "detect_batch"):
                     _, batch_results = detector.detect_batch(frames_to_process)
                 else:
                     batch_results = [self.overlay.detect_faces(f) for f in frames_to_process]
-                
+
                 # Prepare for batch recognition (all faces from all cameras)
                 recognition_requests: list[tuple[FrameArray, FaceBox, int, int]] = []
-                
+
                 for i, detections in enumerate(batch_results):
                     device = camera_ids[i]
                     if detections is None:
                         continue
-                    
+
                     source_frame = frames_to_process[i]
                     frame_h, frame_w = source_frame.shape[:2]
-                    
-                    for row_idx, row in enumerate(detections):
+
+                    for row in detections:
                         # Create FaceBox from detector output
                         rx, ry, rw, rh = int(row[0]), int(row[1]), int(row[2]), int(row[3])
-                        sq_x, sq_y, sq_w, sq_h = to_square(rx, ry, rw, rh, frame_w=frame_w, frame_h=frame_h)
-                        face_box = FaceBox(x=sq_x, y=sq_y, w=sq_w, h=sq_h, confidence=float(row[14]), raw_detection=row)
-                        
+                        sq_x, sq_y, sq_w, sq_h = to_square(
+                            rx,
+                            ry,
+                            rw,
+                            rh,
+                            frame_w=frame_w,
+                            frame_h=frame_h,
+                        )
+                        face_box = FaceBox(
+                            x=sq_x,
+                            y=sq_y,
+                            w=sq_w,
+                            h=sq_h,
+                            confidence=float(row[14]),
+                            raw_detection=row,
+                        )
+
                         # (frame, face_box, camera_id, camera_index_in_batch)
                         recognition_requests.append((source_frame, face_box, device, i))
 
@@ -888,16 +980,21 @@ class GodModeVideoServer:
                 if recognition_requests:
                     batch_inputs = [(r[0], r[1]) for r in recognition_requests]
                     embeddings = self.overlay.extract_embeddings_batch(batch_inputs)
-                    
+
                     # Group results by camera
                     faces_per_cam: dict[int, list[FaceBox]] = {cid: [] for cid in camera_ids}
-                    
-                    for req, embedding in zip(recognition_requests, embeddings):
+
+                    for req, embedding in zip(recognition_requests, embeddings, strict=False):
                         _, face_box, device, _ = req
                         if embedding is not None:
                             # Classify owner status using extracted embedding
-                            face_box.label, face_box.confidence = self.overlay._classify_label_with_embedding(embedding, face_box)
-                        
+                            face_box.label, face_box.confidence = (
+                                self.overlay._classify_label_with_embedding(
+                                    embedding,
+                                    face_box,
+                                )
+                            )
+
                         faces_per_cam[device].append(face_box)
 
                     # Update trackers and records
