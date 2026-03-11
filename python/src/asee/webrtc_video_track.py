@@ -22,6 +22,10 @@ def _black_frame(width: int = 320, height: int = 240) -> FrameArray:
     return np.zeros((height, width, 3), dtype=np.uint8)
 
 
+def _to_yuv420_frame(frame: FrameArray) -> av.VideoFrame:
+    return av.VideoFrame.from_ndarray(frame, format="bgr24").reformat(format="yuv420p")
+
+
 class RuntimeVideoTrack(VideoStreamTrack):
     """aiortc track that reads frames and face metadata from SeeingServerRuntime."""
 
@@ -86,9 +90,7 @@ class RuntimeVideoTrack(VideoStreamTrack):
             )
 
         self._seq += 1
-        rgb = frame[:, :, ::-1].copy()
-        av_frame = av.VideoFrame.from_ndarray(rgb, format="rgb24")
-        yuv_frame = av_frame.reformat(format="yuv420p")
+        yuv_frame = _to_yuv420_frame(frame)
         yuv_frame.pts = self._pts
         yuv_frame.time_base = self._TIME_BASE
         self._pts += self._pts_step

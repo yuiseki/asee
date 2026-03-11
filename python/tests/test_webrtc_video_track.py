@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+import asee.webrtc_video_track as webrtc_video_track_module
 from asee.overlay_broadcaster import OverlayBroadcaster
 from asee.server_runtime import SeeingServerRuntime
 from asee.webrtc_video_track import RuntimeVideoTrack
@@ -81,5 +82,41 @@ def test_runtime_video_track_returns_soon_after_new_frame_arrives() -> None:
         assert video_frame.width == 160
         assert video_frame.height == 120
         assert elapsed < 0.08
+
+    asyncio.run(scenario())
+
+
+def test_runtime_video_track_passes_bgr_frame_without_rgb_copy(monkeypatch) -> None:
+    async def scenario() -> None:
+        runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+        frame = np.full((120, 160, 3), 11, dtype=np.uint8)
+        runtime.update_frame(frame, camera_id=2)
+        track = RuntimeVideoTrack(runtime, camera_id=2, fps=1000, broadcaster=None)
+
+        calls: list[np.ndarray] = []
+
+        class FakeYuvFrame:
+            def __init__(self) -> None:
+                self.pts = None
+                self.time_base = None
+                self.width = 160
+                self.height = 120
+
+        fake_yuv = FakeYuvFrame()
+
+        def fake_to_yuv420_frame(array: np.ndarray) -> FakeYuvFrame:
+            calls.append(array)
+            return fake_yuv
+
+        monkeypatch.setattr(
+            webrtc_video_track_module,
+            "_to_yuv420_frame",
+            fake_to_yuv420_frame,
+        )
+
+        video_frame = await track.recv()
+
+        assert video_frame is fake_yuv
+        assert calls == [frame]
 
     asyncio.run(scenario())
