@@ -11,6 +11,8 @@ export type OverlayFrameMessage = {
   seq: number;
   ts_ms: number;
   camera_id: number;
+  frame_width?: number;
+  frame_height?: number;
   faces: OverlayFaceMessage[];
   caption?: string;
   prediction?: string;

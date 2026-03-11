@@ -61,6 +61,8 @@ class RuntimeVideoTrack(VideoStreamTrack):
                     seq=self._seq,
                     ts_ms=int(time.time() * 1000),
                     camera_id=0 if self._camera_id is None else self._camera_id,
+                    frame_width=int(frame.shape[1]),
+                    frame_height=int(frame.shape[0]),
                     caption=self._runtime.overlay_state.caption,
                     prediction=self._runtime.overlay_state.prediction,
                     faces=[

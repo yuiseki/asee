@@ -1,14 +1,16 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
 
 import { parseRuntimeOptions } from './runtime-options';
-import { buildMainWindowOptions } from './window-options';
+import { buildDefaultViewerBounds, buildMainWindowOptions } from './window-options';
 
 function createMainWindow(title: string): BrowserWindow {
+  const bounds = buildDefaultViewerBounds(screen.getPrimaryDisplay().workArea);
   const window = new BrowserWindow(
     buildMainWindowOptions({
       title,
       preloadPath: join(__dirname, '../preload/index.js'),
+      bounds,
     }),
   );
 

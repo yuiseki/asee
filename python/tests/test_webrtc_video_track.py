@@ -54,6 +54,8 @@ def test_runtime_video_track_uses_runtime_frame_and_broadcasts_overlay() -> None
         assert video_frame.height == 180
         assert len(payloads) == 1
         assert '"camera_id": 2' in payloads[0]
+        assert '"frame_width": 320' in payloads[0]
+        assert '"frame_height": 180' in payloads[0]
         assert '"label": "OWNER"' in payloads[0]
         assert '"caption": "OBSERVING"' in payloads[0]
 

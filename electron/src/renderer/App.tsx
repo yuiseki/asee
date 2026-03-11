@@ -10,6 +10,7 @@ import {
 import type { ViewerApi, ViewerConfig, ViewerSnapshot } from '@/shared/viewer-api';
 
 import { connectWebRtcFeeds, type OverlayFrameMessage } from './webrtc-client';
+import { drawOverlayFrameToCanvas } from './overlay-canvas';
 
 const DEFAULT_CONFIG: ViewerConfig = {
   title: 'ASEE Viewer',
@@ -90,6 +91,7 @@ function WebRtcFeed({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const video = videoRef.current;
     if (canvas == null) {
       return;
     }
@@ -108,15 +110,14 @@ function WebRtcFeed({
       return;
     }
 
-    context.strokeStyle = 'rgba(0, 255, 160, 0.9)';
-    context.fillStyle = 'rgba(0, 255, 160, 0.95)';
-    context.lineWidth = 2;
-    context.font = '14px IBM Plex Mono';
-
-    for (const face of overlayFrame.faces) {
-      context.strokeRect(face.x, face.y, face.w, face.h);
-      context.fillText(face.label, face.x, Math.max(14, face.y - 6));
-    }
+    drawOverlayFrameToCanvas({
+      context,
+      canvasWidth: width,
+      canvasHeight: height,
+      frame: overlayFrame,
+      sourceWidth: overlayFrame.frame_width ?? video?.videoWidth ?? width,
+      sourceHeight: overlayFrame.frame_height ?? video?.videoHeight ?? height,
+    });
   }, [overlayFrame]);
 
   return (

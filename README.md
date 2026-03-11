@@ -42,6 +42,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
 - the viewer supervisor now reapplies the default left-bottom KWin layout after each viewer launch, so a respawned Electron window does not drift back to the desktop center.
+- direct Electron launch now also defaults to the left-bottom half of the primary work area, so standalone WebRTC runs open in the same monitor slot as the supervised path.
 - `ASEE_VIEWER_RESPAWN=0` disables that respawn loop when a bounded test wants the viewer to exit only once.
 - GPU experiments now flow through `tmp_main.sh` into the Electron runner via env vars such as `ASEE_VIEWER_USE_GL=desktop`, `ASEE_VIEWER_USE_ANGLE=gl`, `ASEE_VIEWER_DISABLE_GPU_SANDBOX=1`, `ASEE_VIEWER_EXTRA_ARGS='--enable-logging=stderr --v=1'`, and PRIME offload hints like `__NV_PRIME_RENDER_OFFLOAD=1`, `__NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `DRI_PRIME=1`.
 - each viewer restart logs the effective GPU env values and resolved Electron args into `/tmp/asee_tmp_main_viewer_<port>.log`.
@@ -125,6 +126,7 @@ npm run demo
 - `electron/` is now the official viewer surface for `asee`; Chromium/PWA is no longer the target UI path.
 - `tmp_main.sh` now prebuilds the viewer before launch, then runs the Electron process through `scripts/run-electron-with-x11-env.mjs --skip-build` so viewer crashes can be supervised separately from build failures.
 - when the backend reports `status.transport = "webrtc"`, the Electron viewer now opens staged WebRTC tracks via `POST /offer` and draws face boxes on a canvas overlay instead of consuming MJPEG `<img>` tags.
+- that WebRTC canvas overlay now maps face boxes from source-frame coordinates through the same `object-fit: cover` geometry as the `<video>` tag and mirrors the legacy OWNER/SUBJECT HUD colors and label treatment.
 
 ## Migration Notes
 

@@ -110,6 +110,9 @@ Accepted
   - `mjpeg` keeps the existing `<img src="/stream/...">` path
   - `webrtc` opens `RTCPeerConnection`, posts `/offer`, and renders `<video>` tiles with a canvas face-box overlay
   - preload snapshot polling remains the single source for status/caption/biometric text in both modes
+  - WebRTC overlay payloads now carry source-frame dimensions, so the Electron canvas can map face boxes through `object-fit: cover` without drifting
+  - the Electron canvas overlay now mirrors the legacy OWNER/SUBJECT HUD colors and label treatment instead of a placeholder debug style
+  - direct Electron launch also defaults to the left-bottom half of the primary work area, matching the supervised layout slot from `tmp_main.sh`
 - OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
