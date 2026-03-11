@@ -1,6 +1,15 @@
-import { startTransition, useEffect, useEffectEvent, useMemo, useState } from 'react';
+import {
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type { ViewerApi, ViewerConfig, ViewerSnapshot } from '@/shared/viewer-api';
+
+import { connectWebRtcFeeds, type OverlayFrameMessage } from './webrtc-client';
 
 const DEFAULT_CONFIG: ViewerConfig = {
   title: 'ASEE Viewer',
@@ -8,6 +17,14 @@ const DEFAULT_CONFIG: ViewerConfig = {
   pollIntervalMs: 2000,
   autoDemo: false,
 };
+
+type CameraFeed = {
+  cameraId: number | null;
+  label: string;
+  mjpegSrc: string;
+};
+
+const EMPTY_CAMERA_IDS: number[] = [];
 
 function getViewerApi(): ViewerApi | null {
   return window.aseeViewerApi ?? null;
@@ -28,12 +45,12 @@ function formatPeopleSummary(snapshot: ViewerSnapshot): string {
   return `${snapshot.biometricStatus.peopleCount} PEOPLE DETECTED`;
 }
 
-function buildCameraFeeds(snapshot: ViewerSnapshot): Array<{ cameraId: number | null; src: string; label: string }> {
+function buildCameraFeeds(snapshot: ViewerSnapshot): CameraFeed[] {
   if (snapshot.cameras.length <= 1) {
     return [
       {
         cameraId: snapshot.cameras[0] ?? null,
-        src:
+        mjpegSrc:
           snapshot.cameras.length === 1
             ? `${snapshot.baseUrl}/stream/${snapshot.cameras[0]}`
             : `${snapshot.baseUrl}/stream`,
@@ -44,9 +61,78 @@ function buildCameraFeeds(snapshot: ViewerSnapshot): Array<{ cameraId: number | 
 
   return snapshot.cameras.map((cameraId) => ({
     cameraId,
-    src: `${snapshot.baseUrl}/stream/${cameraId}`,
+    mjpegSrc: `${snapshot.baseUrl}/stream/${cameraId}`,
     label: `CAM ${cameraId}`,
   }));
+}
+
+function WebRtcFeed({
+  feed,
+  stream,
+  overlayFrame,
+  single,
+}: {
+  feed: CameraFeed;
+  stream: MediaStream | null;
+  overlayFrame: OverlayFrameMessage | null;
+  single: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current as (HTMLVideoElement & { srcObject?: MediaStream | null }) | null;
+    if (video == null) {
+      return;
+    }
+    video.srcObject = stream;
+  }, [stream]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas == null) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (context == null) {
+      return;
+    }
+
+    const width = canvas.clientWidth || 640;
+    const height = canvas.clientHeight || 360;
+    canvas.width = width;
+    canvas.height = height;
+    context.clearRect(0, 0, width, height);
+
+    if (overlayFrame == null) {
+      return;
+    }
+
+    context.strokeStyle = 'rgba(0, 255, 160, 0.9)';
+    context.fillStyle = 'rgba(0, 255, 160, 0.95)';
+    context.lineWidth = 2;
+    context.font = '14px IBM Plex Mono';
+
+    for (const face of overlayFrame.faces) {
+      context.strokeRect(face.x, face.y, face.w, face.h);
+      context.fillText(face.label, face.x, Math.max(14, face.y - 6));
+    }
+  }, [overlayFrame]);
+
+  return (
+    <article className={single ? 'cam-tile cam-tile-single' : 'cam-tile'} key={feed.label}>
+      <video
+        autoPlay
+        className={single ? 'single-feed' : 'tile-feed'}
+        data-testid={`webrtc-feed-${feed.cameraId ?? 'live'}`}
+        muted
+        playsInline
+        ref={videoRef}
+      />
+      <canvas className="feed-overlay" ref={canvasRef} />
+      <span className="tile-label">{feed.label}</span>
+    </article>
+  );
 }
 
 export function App() {
@@ -55,6 +141,8 @@ export function App() {
   const [snapshot, setSnapshot] = useState<ViewerSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [webrtcStreams, setWebrtcStreams] = useState<Record<number, MediaStream>>({});
+  const [overlayFrames, setOverlayFrames] = useState<Record<number, OverlayFrameMessage>>({});
 
   const refreshSnapshot = useEffectEvent(async () => {
     if (!api) {
@@ -98,21 +186,99 @@ export function App() {
   }, []);
 
   const feeds = useMemo(() => (snapshot ? buildCameraFeeds(snapshot) : []), [snapshot]);
+  const isWebRtc = snapshot?.status.transport === 'webrtc';
+  const cameraKey = feeds.map((feed) => feed.cameraId ?? 'live').join(',');
+  const baseUrl = snapshot?.baseUrl ?? '';
+  const cameraIds = snapshot?.cameras ?? EMPTY_CAMERA_IDS;
+
+  useEffect(() => {
+    if (!isWebRtc || baseUrl === '') {
+      startTransition(() => {
+        setWebrtcStreams({});
+        setOverlayFrames({});
+      });
+      return;
+    }
+
+    let cancelled = false;
+    let session: { close: () => void } | null = null;
+
+    void connectWebRtcFeeds({
+      baseUrl,
+      cameraIds,
+      onStream: (cameraId, stream) => {
+        if (cancelled) {
+          return;
+        }
+        startTransition(() => {
+          setWebrtcStreams((previous) => ({ ...previous, [cameraId]: stream }));
+        });
+      },
+      onOverlayFrame: (frame) => {
+        if (cancelled) {
+          return;
+        }
+        startTransition(() => {
+          setOverlayFrames((previous) => ({ ...previous, [frame.camera_id]: frame }));
+        });
+      },
+    })
+      .then((nextSession) => {
+        if (cancelled) {
+          nextSession.close();
+          return;
+        }
+        session = nextSession;
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        startTransition(() => {
+          setErrorMessage(message);
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      session?.close();
+    };
+  }, [baseUrl, cameraIds, cameraKey, isWebRtc]);
 
   return (
     <main className="viewer-shell">
       <div className="camera-stage">
         {snapshot && feeds.length > 1 ? (
           <section className="tile-grid" aria-label="Camera grid">
-            {feeds.map((feed) => (
-              <article className="cam-tile" key={feed.label}>
-                <img alt={feed.label} src={feed.src} />
-                <span className="tile-label">{feed.label}</span>
-              </article>
-            ))}
+            {feeds.map((feed) =>
+              isWebRtc ? (
+                <WebRtcFeed
+                  feed={feed}
+                  key={feed.label}
+                  overlayFrame={overlayFrames[feed.cameraId ?? 0] ?? null}
+                  single={false}
+                  stream={webrtcStreams[feed.cameraId ?? 0] ?? null}
+                />
+              ) : (
+                <article className="cam-tile" key={feed.label}>
+                  <img alt={feed.label} src={feed.mjpegSrc} />
+                  <span className="tile-label">{feed.label}</span>
+                </article>
+              ),
+            )}
           </section>
         ) : snapshot && feeds.length === 1 ? (
-          <img className="single-feed" alt={feeds[0].label} src={feeds[0].src} />
+          isWebRtc ? (
+            <WebRtcFeed
+              feed={feeds[0]}
+              overlayFrame={overlayFrames[feeds[0].cameraId ?? 0] ?? null}
+              single
+              stream={webrtcStreams[feeds[0].cameraId ?? 0] ?? null}
+            />
+          ) : (
+            <img className="single-feed" alt={feeds[0].label} src={feeds[0].mjpegSrc} />
+          )
         ) : (
           <section className="placeholder-feed">
             <p>CONNECTING TO BACKEND</p>
@@ -136,7 +302,8 @@ export function App() {
             <p className="status-headline">{formatOwnerPresence(snapshot)}</p>
             <p className="panel-body">{formatPeopleSummary(snapshot)}</p>
             <p className="panel-subtle">
-              {snapshot.status.running ? 'BACKEND RUNNING' : 'BACKEND STOPPED'}
+              {snapshot.status.running ? 'BACKEND RUNNING' : 'BACKEND STOPPED'} /{' '}
+              {snapshot.status.transport.toUpperCase()}
             </p>
           </>
         ) : errorMessage ? (

@@ -20,8 +20,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
     - runtime-backed WebRTC video track that reads `SeeingServerRuntime`
 - `electron/`
   - Electron + React + TypeScript viewer
-  - already reads the existing GOD MODE HTTP contract through a preload bridge
-  - future home for the full GOD MODE desktop surface
+  - reads the existing GOD MODE HTTP contract through a preload bridge
+  - stages both MJPEG `<img>` tiles and WebRTC `<video> + canvas` tiles
+  - remains the future home for the full GOD MODE desktop surface
 - `docs/ADR/`
   - repository-level architecture decisions
 
@@ -123,6 +124,7 @@ npm run demo
 - the Electron viewer now keeps exactly one polling interval alive, so `ASEE_VIEWER_POLL_INTERVAL_MS` is honored instead of multiplying backend request load on each refresh.
 - `electron/` is now the official viewer surface for `asee`; Chromium/PWA is no longer the target UI path.
 - `tmp_main.sh` now prebuilds the viewer before launch, then runs the Electron process through `scripts/run-electron-with-x11-env.mjs --skip-build` so viewer crashes can be supervised separately from build failures.
+- when the backend reports `status.transport = "webrtc"`, the Electron viewer now opens staged WebRTC tracks via `POST /offer` and draws face boxes on a canvas overlay instead of consuming MJPEG `<img>` tags.
 
 ## Migration Notes
 
@@ -131,7 +133,7 @@ npm run demo
 - `repos/asee/tmp_main.sh` is now the canonical operator entrypoint that replaced the legacy `tmp/_trash/GOD_MODE/god_mode.sh` flow
 - image processing remains Python-first
 - desktop rendering moves toward Electron instead of Tauri/WebKitGTK
-- `electron/` can already act as a read-only viewer for the current backend at `http://127.0.0.1:8765`
+- `electron/` can now stage either MJPEG or WebRTC viewing against the same backend runtime at `http://127.0.0.1:8765`
 - `python/asee.overlay.GodModeOverlay` is now the target runtime for future `tmp/_trash/GOD_MODE` compatibility wrappers
 - `python/asee.server_runtime.SeeingServerRuntime` is now the target state holder for future `god_mode_video_server.py` wrappers
 - `python/asee.video_server.GodModeVideoServer` is now the migration target for camera-less, single-camera, and safety-limited multi-camera server behavior

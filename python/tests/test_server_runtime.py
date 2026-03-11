@@ -143,3 +143,13 @@ def test_iter_mjpeg_delegates_to_stream_factory():
     assert list(runtime.iter_mjpeg()) == [b"a", b"b"]
     assert list(runtime.iter_mjpeg(4)) == [b"a", b"b"]
     assert calls == [None, 4]
+
+
+def test_transport_defaults_to_mjpeg_and_is_mutable():
+    runtime = SeeingServerRuntime(overlay=FakeOverlay())
+
+    assert runtime.transport == "mjpeg"
+
+    runtime.transport = "webrtc"
+
+    assert runtime.transport == "webrtc"

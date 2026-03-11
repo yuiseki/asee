@@ -124,7 +124,14 @@ def create_webrtc_app(
 
     async def handle_status(_request: web.Request) -> web.Response:
         running = runtime.is_running if runtime is not None else True
-        return web.json_response({"running": running, "connections": len(_peer_connections)})
+        transport = runtime.transport if runtime is not None else "webrtc"
+        return web.json_response(
+            {
+                "running": running,
+                "transport": transport,
+                "connections": len(_peer_connections),
+            }
+        )
 
     async def handle_cameras(_request: web.Request) -> web.Response:
         return web.json_response({"cameras": list(camera_ids_payload)})

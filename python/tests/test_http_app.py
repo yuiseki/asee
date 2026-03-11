@@ -86,7 +86,7 @@ def test_status_endpoint_reports_running_flag():
     response = make_client(runtime).get("/status")
 
     assert response.status_code == 200
-    assert response.get_json() == {"running": True}
+    assert response.get_json() == {"running": True, "transport": "mjpeg"}
 
 
 def test_biometric_status_endpoint_passes_payload_through():

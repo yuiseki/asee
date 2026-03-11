@@ -412,6 +412,7 @@ class GodModeVideoServer:
             jpeg_quality=80,
             stream_factory=self.iter_mjpeg,
         )
+        self.runtime.transport = transport
         self._frame_lock = threading.Lock()
         self._stop_event = threading.Event()
         self.is_running = False

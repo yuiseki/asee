@@ -1,5 +1,6 @@
 export type ViewerStatus = {
   running: boolean;
+  transport: 'mjpeg' | 'webrtc';
 };
 
 export type OverlayText = {

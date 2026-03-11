@@ -72,6 +72,7 @@ python3 -m venv .venv
   - `asee.webrtc_video_track`
 - `asee.video_server --transport webrtc` now starts the staged signaling path against the same `SeeingServerRuntime`.
 - The existing `asee.video_server` centralized detection/runtime remains the source of truth that the later WebRTC path should wrap, not replace.
+- the official Electron viewer can now consume that staged path through the same preload snapshot contract, selecting WebRTC when `/status.transport` says so.
 
 ## Safety And Diagnostics
 
@@ -175,12 +176,10 @@ python3 -m venv .venv
 ## Planned Next Slice
 
 - add codec selection inside `repos/asee/python`
-- migrate the Electron viewer away from `<img src=\"/stream/...\">` to WebRTC + Canvas overlay
+- keep Flask/MJPEG as the safe fallback until WebRTC parity is proven
 - replace direct detector/classifier orchestration from `tmp/_trash/GOD_MODE` with `asee.overlay.GodModeOverlay`
 - add a compatibility runtime adapter so `tmp/_trash/GOD_MODE` can call `asee` modules as the new source of truth
-- keep Flask/MJPEG as the safe fallback until WebRTC parity is proven
-- keep image processing and biometric inference in Python
-- add an Electron viewer separately instead of pushing CV logic into TypeScript
+- keep image processing and biometric inference in Python instead of moving recognition logic into TypeScript
 
 ## Notes
 

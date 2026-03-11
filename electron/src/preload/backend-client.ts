@@ -57,6 +57,7 @@ export async function fetchViewerSnapshot({
     cameras: Array.isArray(cameraResponse.cameras) ? cameraResponse.cameras : [],
     status: {
       running: statusResponse.running ?? false,
+      transport: statusResponse.transport === 'webrtc' ? 'webrtc' : 'mjpeg',
     },
     overlayText: {
       caption: overlayResponse.caption ?? '',
@@ -75,7 +76,7 @@ export function buildDemoViewerSnapshot(baseUrl: string): ViewerSnapshot {
   return {
     baseUrl: normalizedBaseUrl,
     cameras: [0, 2, 4, 6],
-    status: { running: true },
+    status: { running: true, transport: 'mjpeg' },
     overlayText: {
       caption: 'OBSERVING OWNER PRESENCE',
       prediction: 'ROOM CALM / FOUR CAMERA GRID',

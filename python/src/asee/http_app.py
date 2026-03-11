@@ -59,6 +59,7 @@ class SeeingHttpRuntime(Protocol):
     title: str
     overlay_state: OverlayTextState
     is_running: bool
+    transport: str
     camera_ids: Sequence[int]
 
     def update_overlay_text(self, *, caption: str = "", prediction: str = "") -> None: ...
@@ -74,6 +75,7 @@ class InMemoryHttpRuntime:
     title: str = "GOD MODE"
     overlay_state: OverlayTextState = field(default_factory=OverlayTextState)
     is_running: bool = False
+    transport: str = "mjpeg"
     camera_ids: tuple[int, ...] = ()
     biometric_status: dict[str, BiometricStatusValue] = field(
         default_factory=lambda: {
@@ -216,7 +218,7 @@ def create_http_app(
 
     @app.route("/status")
     def status() -> Response:
-        return jsonify({"running": runtime.is_running})
+        return jsonify({"running": runtime.is_running, "transport": runtime.transport})
 
     @app.route("/biometric_status")
     def biometric_status() -> Response:

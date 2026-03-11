@@ -25,7 +25,7 @@ describe('fetchViewerSnapshot', () => {
         });
       }
       if (url.endsWith('/status')) {
-        return new Response(JSON.stringify({ running: true }), {
+        return new Response(JSON.stringify({ running: true, transport: 'webrtc' }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -57,6 +57,7 @@ describe('fetchViewerSnapshot', () => {
     expect(snapshot.cameras).toEqual([0, 2]);
     expect(snapshot.overlayText.caption).toBe('観測中');
     expect(snapshot.status.running).toBe(true);
+    expect(snapshot.status.transport).toBe('webrtc');
     expect(snapshot.biometricStatus.ownerPresent).toBe(true);
   });
 });
@@ -66,6 +67,7 @@ describe('buildDemoViewerSnapshot', () => {
     const snapshot = buildDemoViewerSnapshot('http://127.0.0.1:8765');
 
     expect(snapshot.cameras).toEqual([0, 2, 4, 6]);
+    expect(snapshot.status.transport).toBe('mjpeg');
     expect(snapshot.overlayText.caption).toContain('OBSERVING');
     expect(snapshot.biometricStatus.ownerPresent).toBe(true);
   });

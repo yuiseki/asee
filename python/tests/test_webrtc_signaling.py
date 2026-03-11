@@ -63,6 +63,7 @@ def test_status_and_compat_endpoints() -> None:
 
             assert cameras == {"cameras": [0, 2, 4, 6]}
             assert status["running"] is True
+            assert status["transport"] == "webrtc"
             assert overlay == {"caption": "OBSERVING", "prediction": "ROOM CALM"}
             assert biometric["ownerPresent"] is True
         finally:
@@ -75,6 +76,7 @@ def test_runtime_backed_endpoints_reflect_live_runtime_state() -> None:
     async def scenario() -> None:
         runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(0, 2))
         runtime.set_running(True)
+        runtime.transport = "webrtc"
         runtime.update_overlay_text(caption="OBSERVING", prediction="ROOM CALM")
         runtime.record_faces(
             [SimpleNamespace(label="OWNER")],
@@ -91,6 +93,7 @@ def test_runtime_backed_endpoints_reflect_live_runtime_state() -> None:
 
             assert cameras == {"cameras": [0, 2]}
             assert status["running"] is True
+            assert status["transport"] == "webrtc"
             assert overlay == {"caption": "OBSERVING", "prediction": "ROOM CALM"}
             assert biometric["ownerPresent"] is True
         finally:
