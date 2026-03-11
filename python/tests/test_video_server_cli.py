@@ -40,13 +40,13 @@ def test_resolve_camera_args_uses_first_camera_when_csv_is_present() -> None:
     assert camera_list == [2, 4, 6]
 
 
-def test_resolve_capture_settings_defaults_multicamera_to_720p_10fps() -> None:
+def test_resolve_capture_settings_defaults_multicamera_to_720p_30fps() -> None:
     settings = resolve_capture_settings(camera_ids=[0, 2, 4, 6])
 
     assert settings == CaptureSettings(
         width=1280,
         height=720,
-        fps=10.0,
+        fps=30.0,
         fourcc="MJPG",
     )
 
@@ -57,7 +57,7 @@ def test_resolve_capture_settings_supports_720p_profile_for_multicamera() -> Non
     assert settings == CaptureSettings(
         width=1280,
         height=720,
-        fps=10.0,
+        fps=30.0,
         fourcc="MJPG",
     )
 

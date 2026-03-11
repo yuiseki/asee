@@ -131,12 +131,12 @@ def resolve_capture_settings(
         base = CaptureSettings(
             width=1280,
             height=720,
-            fps=10.0 if len(camera_ids) > 1 else 30.0,
+            fps=30.0,
             fourcc="MJPG",
         )
     else:
         base = (
-            CaptureSettings(width=1280, height=720, fps=10.0, fourcc="MJPG")
+            CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
             if len(camera_ids) > 1
             else CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
         )

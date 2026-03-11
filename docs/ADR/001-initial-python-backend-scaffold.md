@@ -64,7 +64,7 @@ Accepted
   - `asee.video_server` defaults to no-camera mode
   - live webcam access requires an explicit `--allow-live-camera` opt-in
   - single-camera mode keeps a higher-fidelity default request (`1280x720 @ 30fps MJPG`)
-  - multi-camera mode now defaults back to `1280x720 @ 10fps MJPG`
+  - multi-camera mode now defaults to `1280x720 @ 30fps MJPG`
   - `--capture-profile 720p` remains as the explicit name for that multicamera operating point
   - OWNER enrollment still runs through a `1280x720` overlay path, so the restored multicamera default stays closer to enrollment conditions
   - explicit `--width` / `--height` / `--fps` overrides remain the pressure-relief path when operators need a lower-resolution experiment

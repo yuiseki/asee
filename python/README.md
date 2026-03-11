@@ -84,7 +84,7 @@ python3 -m venv .venv
 
 - `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
 - single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
-- multi-camera default capture profile now returns to `1280x720 @ 10fps MJPG`.
+- multi-camera default capture profile now returns to `1280x720 @ 30fps MJPG`.
 - `--capture-profile 720p` remains the explicit shortcut for that multicamera operating point.
 - `asee.enroll_owner` still captures OWNER embeddings through a `1280x720` overlay path, so the restored multi-camera default now matches enrollment conditions more closely.
 - if load becomes unacceptable, the explicit fallback is now to lower `--width/--height/--fps` for the experiment instead of relying on the default path.
