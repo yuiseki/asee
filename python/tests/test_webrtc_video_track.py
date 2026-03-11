@@ -120,3 +120,60 @@ def test_runtime_video_track_passes_bgr_frame_without_rgb_copy(monkeypatch) -> N
         assert calls == [frame]
 
     asyncio.run(scenario())
+
+
+def test_runtime_video_track_skips_duplicate_overlay_broadcasts() -> None:
+    async def scenario() -> None:
+        runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+        frame = np.full((180, 320, 3), 42, dtype=np.uint8)
+        runtime.update_frame(frame, camera_id=2)
+        runtime.update_overlay_text(caption="OBSERVING", prediction="OWNER PRESENT")
+        runtime.record_faces(
+            [SimpleNamespace(x=10, y=20, w=30, h=40, label="OWNER", confidence=0.98)],
+            camera_id=2,
+        )
+
+        payloads: list[str] = []
+        channel = SimpleNamespace(readyState="open", send=lambda payload: payloads.append(payload))
+        broadcaster = OverlayBroadcaster()
+        broadcaster.add_channel(channel)
+        track = RuntimeVideoTrack(runtime, camera_id=2, fps=1000, broadcaster=broadcaster)
+
+        await track.recv()
+        runtime.update_frame(frame, camera_id=2)
+        await track.recv()
+
+        assert len(payloads) == 1
+
+    asyncio.run(scenario())
+
+
+def test_runtime_video_track_broadcasts_overlay_when_faces_change() -> None:
+    async def scenario() -> None:
+        runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+        frame = np.full((180, 320, 3), 42, dtype=np.uint8)
+        runtime.update_frame(frame, camera_id=2)
+        runtime.update_overlay_text(caption="OBSERVING", prediction="OWNER PRESENT")
+        runtime.record_faces(
+            [SimpleNamespace(x=10, y=20, w=30, h=40, label="OWNER", confidence=0.98)],
+            camera_id=2,
+        )
+
+        payloads: list[str] = []
+        channel = SimpleNamespace(readyState="open", send=lambda payload: payloads.append(payload))
+        broadcaster = OverlayBroadcaster()
+        broadcaster.add_channel(channel)
+        track = RuntimeVideoTrack(runtime, camera_id=2, fps=1000, broadcaster=broadcaster)
+
+        await track.recv()
+        runtime.record_faces(
+            [SimpleNamespace(x=50, y=60, w=30, h=40, label="OWNER", confidence=0.99)],
+            camera_id=2,
+        )
+        runtime.update_frame(frame, camera_id=2)
+        await track.recv()
+
+        assert len(payloads) == 2
+        assert '"x": 50' in payloads[1]
+
+    asyncio.run(scenario())
