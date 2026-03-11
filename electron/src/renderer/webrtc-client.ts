@@ -19,6 +19,10 @@ export type OverlayFrameMessage = {
 };
 
 type FetchLike = typeof fetch;
+type LowLatencyReceiver = RTCRtpReceiver & {
+  playoutDelayHint?: number;
+  jitterBufferTarget?: number;
+};
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
@@ -29,6 +33,25 @@ function buildTrackStream(event: RTCTrackEvent): MediaStream | null {
     return new MediaStream([event.track]);
   }
   return event.streams[0] ?? null;
+}
+
+function tuneReceiversForLowLatency(peerConnection: RTCPeerConnection): void {
+  const candidate = peerConnection as RTCPeerConnection & {
+    getReceivers?: () => RTCRtpReceiver[];
+  };
+  const receivers = candidate.getReceivers?.() ?? [];
+  for (const receiver of receivers) {
+    const typedReceiver = receiver as LowLatencyReceiver;
+    if (typedReceiver.track?.kind !== 'video') {
+      continue;
+    }
+    try {
+      typedReceiver.playoutDelayHint = 0;
+    } catch {}
+    try {
+      typedReceiver.jitterBufferTarget = 0;
+    } catch {}
+  }
 }
 
 export async function connectWebRtcFeeds({
@@ -88,6 +111,7 @@ export async function connectWebRtcFeeds({
 
   const answer = (await response.json()) as { type: RTCSdpType; sdp: string };
   await peerConnection.setRemoteDescription(answer);
+  tuneReceiversForLowLatency(peerConnection);
 
   return {
     close: () => {

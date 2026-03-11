@@ -19,6 +19,13 @@ class FakeRtcPeerConnection {
     return undefined;
   });
   public close = vi.fn();
+  public getReceivers = vi.fn(
+    () =>
+      [
+        { track: { kind: 'video' }, playoutDelayHint: undefined, jitterBufferTarget: undefined },
+        { track: { kind: 'audio' } },
+      ] as unknown as RTCRtpReceiver[],
+  );
   public localDescription: RTCSessionDescriptionInit | null = null;
   public ontrack: ((event: RTCTrackEvent) => void) | null = null;
   public ondatachannel: ((event: RTCDataChannelEvent) => void) | null = null;
@@ -64,6 +71,14 @@ describe('connectWebRtcFeeds', () => {
         method: 'POST',
       }),
     );
+    expect(pc.getReceivers).toHaveBeenCalled();
+    const receivers = pc.getReceivers.mock.results[0]?.value as Array<{
+      track?: { kind?: string };
+      playoutDelayHint?: number;
+      jitterBufferTarget?: number;
+    }>;
+    expect(receivers[0]?.playoutDelayHint).toBe(0);
+    expect(receivers[0]?.jitterBufferTarget).toBe(0);
 
     class FakeMediaStream {
       public tracks: MediaStreamTrack[];
