@@ -200,7 +200,10 @@ class GodModeOverlay:
                 if x2 > x1 and y2 > y1:
                     crop = frame[y1:y2, x1:x2]
                     if crop.size > 0:
-                        aligned = cv2.resize(crop, (112, 112))
+                        aligned = cast(
+                            FrameArray,
+                            cv2.resize(crop, (112, 112)),
+                        )
 
             if aligned is not None:
                 aligned_crops.append(aligned)
@@ -211,12 +214,12 @@ class GodModeOverlay:
         if aligned_crops:
             try:
                 # Use batch interface if available
-                if hasattr(self._recognizer, 'feature_batch'):
+                if hasattr(self._recognizer, "feature_batch"):
                     embeddings = self._recognizer.feature_batch(aligned_crops)
                 else:
                     embeddings = [self._recognizer.feature(ac) for ac in aligned_crops]
-                
-                for idx, emb in zip(valid_indices, embeddings):
+
+                for idx, emb in zip(valid_indices, embeddings, strict=False):
                     results[idx] = emb
             except Exception as error:
                 logger.error("Batch feature extraction failed: %s", error)
@@ -233,16 +236,15 @@ class GodModeOverlay:
     ) -> np.ndarray:
         del frame_count
         # Draw on a copy to keep the original frame clean
-        output = cv2.addWeighted(frame, 0.96, self._grid_overlay, 0.04, 0)
+        output = cast(
+            FrameArray,
+            cv2.addWeighted(frame, 0.96, self._grid_overlay, 0.04, 0),
+        )
         visible_faces = self.smooth_faces(face_boxes or []) if smooth else (face_boxes or [])
 
         for face_box in visible_faces:
             self._draw_face_box(output, face_box)
         return output
-
-    def _draw_grid(self, image: FrameArray, width: int, height: int) -> None:
-        """Legacy method, now handled by self._grid_overlay."""
-        pass
 
     def _load_yunet(self, path: str, width: int, height: int) -> Any:
         if not os.path.exists(path):

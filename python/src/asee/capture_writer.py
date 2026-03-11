@@ -49,12 +49,14 @@ class FaceCaptureWriter:
         self._cache_time = 0.0
         self._cached_total_files = 0
         self._cached_total_bytes = 0
+        self._last_dir_minute: str | None = None
+        self._current_today_dir: Path = self._root
 
     def _today_dir(self) -> Path:
         now = datetime.now()
         # 分単位まで同じなら、既に作成済みとみなす（簡易キャッシュ）
         current_minute = now.strftime("%Y%m%d%H%M")
-        if hasattr(self, "_last_dir_minute") and self._last_dir_minute == current_minute:
+        if self._last_dir_minute == current_minute:
             return self._current_today_dir
 
         today_dir = (

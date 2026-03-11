@@ -9,6 +9,9 @@ description = "Agentic seeing backend for camera recognition and biometric statu
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "aiohttp>=3.9.0",
+  "aiortc>=1.9.0",
+  "av>=11.0.0",
   "flask>=3.1.0",
   "numpy>=2.2.4",
   "opencv-python-headless>=4.11.0.86",

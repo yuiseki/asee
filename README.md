@@ -13,6 +13,10 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - rebuilt viewer/server state holder for the GOD MODE HTTP contract
   - rebuilt `GodModeVideoServer` compatibility server for camera-less, single-camera, and safety-limited multi-camera paths
   - rebuilt OWNER enrollment flow
+  - staged WebRTC transport primitives for the next viewer/backend migration slice
+    - overlay JSON payloads
+    - overlay broadcaster
+    - aiohttp + aiortc signaling app factory
 - `electron/`
   - Electron + React + TypeScript viewer
   - already reads the existing GOD MODE HTTP contract through a preload bridge
@@ -63,6 +67,13 @@ python3 -m venv .venv
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
+
+- MJPEG/Flask remains the default production path for now.
+- A first WebRTC migration slice now exists in the Python package:
+  - `asee.overlay_data`
+  - `asee.overlay_broadcaster`
+  - `asee.webrtc_signaling`
+- These modules are intentionally additive. They do not replace `asee.video_server` yet.
 
 ## Safety Policy
 

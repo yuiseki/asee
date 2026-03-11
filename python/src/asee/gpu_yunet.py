@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import logging
 import math
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 import numpy.typing as npt
 import torch
-import torch.nn.functional as F
-
-from typing import TYPE_CHECKING, TypeAlias
+import torch.nn.functional as functional
 
 if TYPE_CHECKING:
     import onnxruntime as ort  # type: ignore[import-untyped]
@@ -34,8 +33,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-FrameArray: TypeAlias = npt.NDArray[np.uint8]
-DetectionArray: TypeAlias = npt.NDArray[np.float32]
+type FrameArray = npt.NDArray[np.uint8]
+type DetectionArray = npt.NDArray[np.float32]
 
 # Anchor stride levels that YuNet uses.
 _STRIDES = [8, 16, 32]
@@ -108,7 +107,11 @@ class GpuYuNetDetector:
         # If static, use the model's dimensions. If dynamic, use requested input_size.
         self._target_h = shape[2] if isinstance(shape[2], int) else self._input_h
         self._target_w = shape[3] if isinstance(shape[3], int) else self._input_w
-        logger.info("GpuYuNetDetector: target inference size set to %dx%d", self._target_w, self._target_h)
+        logger.info(
+            "GpuYuNetDetector: target inference size set to %dx%d",
+            self._target_w,
+            self._target_h,
+        )
 
     # ------------------------------------------------------------------
     # Public interface – matches cv2.FaceDetectorYN
@@ -142,12 +145,11 @@ class GpuYuNetDetector:
         if not frames:
             return 0, []
 
-        batch_size = len(frames)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         final_results: list[DetectionArray | None] = []
         total_detections = 0
-        
+
         with torch.no_grad():
             for frame in frames:
                 # 1. Preprocess on GPU
@@ -155,12 +157,17 @@ class GpuYuNetDetector:
                 # cv2.FaceDetectorYN which calls blobFromImage(scalefactor=1.0).
                 t = torch.from_numpy(frame).to(device).float()
                 t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
-                
+
                 # Resize on GPU to actual model target size
                 if t.shape[2] != self._target_h or t.shape[3] != self._target_w:
-                    t = F.interpolate(t, size=(self._target_h, self._target_w), mode='bilinear', align_corners=False)
-                    t = t.contiguous() # Ensure memory is contiguous after resize
-                
+                    t = functional.interpolate(
+                        t,
+                        size=(self._target_h, self._target_w),
+                        mode="bilinear",
+                        align_corners=False,
+                    )
+                    t = t.contiguous()  # Ensure memory is contiguous after resize.
+
                 # 2. IO Binding for this single frame
                 io_binding = self._session.io_binding()
                 io_binding.bind_input(
@@ -173,17 +180,17 @@ class GpuYuNetDetector:
                 )
                 for output in self._session.get_outputs():
                     io_binding.bind_output(output.name)
-                
+
                 # 3. Run
                 self._session.run_with_iobinding(io_binding)
                 outputs = io_binding.copy_outputs_to_cpu()
-                
+
                 # 4. Postprocess
                 detections = self._postprocess(outputs)
                 if detections is not None:
                     total_detections += len(detections)
                 final_results.append(detections)
-                
+
             return total_detections, final_results
 
     # ------------------------------------------------------------------

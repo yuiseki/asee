@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -377,13 +376,7 @@ class TestGpuYuNetNormalization:
     """Regression tests for input normalisation (divide by 255)."""
 
     def test_detect_batch_normalises_input_to_0_1(self):
-        """detect_batch must feed values in [0,1] to the model, not [0,255].
-
-        GpuYuNetDetector passes input through IO Binding; we verify normalisation
-        by inspecting the tensor written to the mock binding: its max value must
-        be <= 1.0 when the source frame contains pixel value 255.
-        """
-        import torch
+        """A white frame should still produce no detections on the mock session."""
         from asee.gpu_yunet import GpuYuNetDetector
 
         det = GpuYuNetDetector.__new__(GpuYuNetDetector)
@@ -399,46 +392,16 @@ class TestGpuYuNetNormalization:
         # Use a pure-white frame so pixel max = 255
         white_frame = np.full((640, 640, 3), 255, dtype=np.uint8)
 
-        captured_tensors: list[torch.Tensor] = []
-        original_bind_input = None
-
-        def capture_bind_input(self_binding, *, name, device_type, device_id,
-                               element_type, shape, buffer_ptr):
-            if name == "input":
-                # Reconstruct tensor from the pointer that was passed
-                t = torch.from_numpy(
-                    np.frombuffer(
-                        (buffer_ptr).to_bytes(8, "little"), dtype=np.uint8
-                    )
-                )
-            # We cannot easily dereference the raw pointer in Python, so instead
-            # we patch torch.Tensor.data_ptr to capture the tensor itself.
-
-        # Simpler approach: patch torch.from_numpy to intercept the tensor
-        real_from_numpy = torch.from_numpy
-        recorded: list[float] = []
-
-        def patched_from_numpy(arr):
-            t = real_from_numpy(arr)
-            return t
-
-        # The best approach: patch the division to observe the tensor *after* /255
-        import asee.gpu_yunet as gyu_mod
-
-        original_detect_batch = GpuYuNetDetector.detect_batch
-
-        with patch("torch.from_numpy", side_effect=patched_from_numpy):
-            # Run detection; we care about no false positives with normalisation
-            n, results = det.detect(white_frame)
-        # With correct normalisation (÷255), a white frame must still give 0
-        # detections since white pixel ≠ face features.
+        n, results = det.detect(white_frame)
         assert n == 0
+        assert results is None
 
     def test_detect_batch_input_normalised_to_unit_range(self):
         """Verify preprocessing produces values in [0,1] by monkey-patching IO binding."""
         import torch
+        import torch.nn.functional as functional
+
         from asee.gpu_yunet import GpuYuNetDetector
-        from unittest.mock import patch, MagicMock
 
         det = GpuYuNetDetector.__new__(GpuYuNetDetector)
         det._input_w = 640
@@ -449,25 +412,15 @@ class TestGpuYuNetNormalization:
         det._nms_threshold = 0.3
         det._top_k = 10
 
-        max_seen: list[float] = []
-
         mock_binding = MagicMock()
         mock_binding.copy_outputs_to_cpu.return_value = _make_mock_session().run.return_value
-
-        def record_bind_input(**kwargs):
-            # Peek at the tensor currently on GPU/CPU via data_ptr
-            # We can't dereference easily, so we intercept torch operations instead
-            pass
-
-        mock_binding.bind_input.side_effect = record_bind_input
 
         session = _make_mock_session()
         session.io_binding.return_value = mock_binding
         det._session = session
 
         # Patch F.interpolate to capture tensor values before IO binding
-        import torch.nn.functional as F_mod
-        real_interpolate = F_mod.interpolate
+        real_interpolate = functional.interpolate
         captured: list[torch.Tensor] = []
 
         def capture_interpolate(input_t, **kwargs):
@@ -476,7 +429,7 @@ class TestGpuYuNetNormalization:
 
         white_frame = np.full((640, 640, 3), 255, dtype=np.uint8)
 
-        with patch.object(F_mod, "interpolate", side_effect=capture_interpolate):
+        with patch.object(functional, "interpolate", side_effect=capture_interpolate):
             det.detect(white_frame)
 
         # YuNet expects [0, 255] raw values (scalefactor=1.0 like cv2.FaceDetectorYN).

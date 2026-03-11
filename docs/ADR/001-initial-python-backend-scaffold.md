@@ -90,6 +90,12 @@ Accepted
 - the twelfth extracted slice adds a reusable remote biometric-status client
   - `asee.biometric_client.RemoteBiometricStatusClient`
   - `tmp/whispercpp-listen` can now fetch `/biometric_status` through `asee` instead of open-coding HTTP request glue
+- the thirteenth extracted slice stages WebRTC transport primitives without changing the production default
+  - `asee.overlay_data.FaceDetection` / `OverlayFrame`
+  - `asee.overlay_broadcaster.OverlayBroadcaster`
+  - `asee.webrtc_signaling.create_webrtc_app()`
+  - the staged signaling app preserves compatibility endpoints (`/cameras`, `/overlay_text`, `/status`, `/biometric_status`) while adding `POST /offer`
+  - Flask/MJPEG remains the default runtime path until the staged WebRTC path is wired to the centralized detection/runtime already living in `asee.video_server`
 - OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
@@ -118,3 +124,5 @@ Accepted
 - the eventual split becomes:
   - Python backend in `repos/asee/python`
   - Electron viewer plus temporary operator launcher in `repos/asee`
+- WebRTC migration can now proceed as an additive transport/viewer replacement instead of a full backend rewrite
+- the staged signaling slice gives us a low-risk place to connect the existing centralized GPU detection/runtime before changing operator defaults

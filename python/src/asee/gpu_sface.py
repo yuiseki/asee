@@ -7,19 +7,18 @@ Provides a high-performance alternative to ``cv2.FaceRecognizerSF`` using
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, Any
 
-import cv2
 import numpy as np
 import numpy.typing as npt
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as functional
 
 if TYPE_CHECKING:
-    import onnxruntime as ort
+    import onnxruntime as ort  # type: ignore[import-untyped]
 
 try:
-    import onnxruntime as ort  # type: ignore
+    import onnxruntime as ort
 
     _ORT_AVAILABLE = True
 except ImportError:
@@ -27,8 +26,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-FrameArray: TypeAlias = npt.NDArray[np.uint8]
-EmbeddingArray: TypeAlias = npt.NDArray[np.float32]
+type FrameArray = npt.NDArray[np.uint8]
+type EmbeddingArray = npt.NDArray[np.float32]
 
 
 class GpuSFaceRecognizer:
@@ -45,7 +44,7 @@ class GpuSFaceRecognizer:
                 "Install via: pip install onnxruntime-gpu"
             )
 
-        providers: list[str | tuple[str, dict]] = [
+        providers: list[str | tuple[str, dict[str, object]]] = [
             (
                 "CUDAExecutionProvider",
                 {
@@ -85,7 +84,6 @@ class GpuSFaceRecognizer:
         if not faces_aligned:
             return []
 
-        batch_size = len(faces_aligned)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         with torch.no_grad():
@@ -94,10 +92,10 @@ class GpuSFaceRecognizer:
             for face in faces_aligned:
                 t = torch.from_numpy(face).to(device).float()
                 t = t.permute(2, 0, 1).unsqueeze(0).contiguous()
-                
+
                 # SFace expects 112x112
                 if t.shape[2] != self._target_h or t.shape[3] != self._target_w:
-                    t = F.interpolate(
+                    t = functional.interpolate(
                         t,
                         size=(self._target_h, self._target_w),
                         mode="bilinear",
@@ -105,17 +103,11 @@ class GpuSFaceRecognizer:
                     )
                     t = t.contiguous()
                 tensors.append(t)
-            
-            # Concatenate into a single batch tensor
-            # Note: We process them one-by-one with IO Binding if the model is fixed to batch=1,
-            # but usually recognizers are more flexible. Let's check the input shape again.
-            # If the model expects [1, 3, 112, 112], we must run sequentially but we can
-            # still benefit from keeping the data on GPU and avoiding multiple binding setup overhead.
-            
-            # For SFace 2021dec, it's often fixed to batch size 1. 
-            # We'll use the high-speed sequential pattern we perfected for YuNet.
+
+            # For SFace 2021dec, batch size is often fixed to 1. We therefore
+            # keep preprocessing on GPU but execute each face crop sequentially.
             final_embeddings: list[EmbeddingArray] = []
-            
+
             for t_batch in tensors:
                 io_binding = self._session.io_binding()
                 io_binding.bind_input(
@@ -160,21 +152,25 @@ class GpuSFaceRecognizer:
         # SFace default is cosine similarity (cv2.FaceRecognizerSF_FR_COSINE = 0)
         f1 = face1_embedding.flatten()
         f2 = face2_embedding.flatten()
-        
+
         # Cosine similarity: (A . B) / (||A|| * ||B||)
         # Since our feature() already returns normalized vectors, this is just dot product.
         dot = np.dot(f1, f2)
         norm1 = np.linalg.norm(f1)
         norm2 = np.linalg.norm(f2)
-        
+
         if norm1 < 1e-6 or norm2 < 1e-6:
             return 0.0
-            
+
         return float(dot / (norm1 * norm2))
 
-    def alignCrop(self, frame: FrameArray, raw_detection: npt.NDArray[Any]) -> FrameArray:
+    def alignCrop(  # noqa: N802
+        self,
+        frame: FrameArray,
+        raw_detection: npt.NDArray[Any],
+    ) -> FrameArray:
         """Align and crop face using raw YuNet detection (landmark based).
-        
+
         Note: Currently uses OpenCV backend for alignment as it's geometry-heavy
         and not easily ported to pure onnxruntime/torch without significant effort.
         """
