@@ -110,7 +110,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         disable_face_detect=True,
         detection_backend="opencv",
-        transport="mjpeg",
+        transport="webrtc",
     )
 
     with (
@@ -140,7 +140,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         enable_face_detection=False,
         detection_backend="opencv",
-        transport="mjpeg",
+        transport="webrtc",
     )
 
 
@@ -166,7 +166,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
-        transport="mjpeg",
+        transport="webrtc",
     )
 
     with (
@@ -206,7 +206,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
-        transport="mjpeg",
+        transport="webrtc",
     )
 
     with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
@@ -229,6 +229,14 @@ def test_build_arg_parser_detection_backend_default_is_onnxruntime() -> None:
     parser = build_arg_parser()
     args = parser.parse_args([])
     assert args.detection_backend == "onnxruntime"
+
+
+def test_build_arg_parser_transport_default_is_webrtc() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.transport == "webrtc"
 
 
 def test_build_server_from_args_passes_detection_backend_to_server() -> None:
@@ -254,7 +262,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="onnxruntime",
-        transport="mjpeg",
+        transport="webrtc",
     )
 
     with (
@@ -265,7 +273,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
 
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
-    assert call_kwargs.get("transport") == "mjpeg"
+    assert call_kwargs.get("transport") == "webrtc"
 
 
 def test_main_builds_server_and_starts_it() -> None:

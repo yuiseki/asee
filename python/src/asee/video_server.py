@@ -269,8 +269,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--transport",
         choices=("mjpeg", "webrtc"),
-        default="mjpeg",
-        help="配信 transport。既定は MJPEG/Flask、webrtc は staged low-latency path",
+        default="webrtc",
+        help="配信 transport。既定は WebRTC、mjpeg は compatibility fallback",
     )
     return parser
 
@@ -313,7 +313,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
-        transport=str(getattr(args, "transport", "mjpeg")),
+        transport=str(getattr(args, "transport", "webrtc")),
     )
 
 
@@ -356,7 +356,7 @@ class GodModeVideoServer:
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
         detection_backend: str = "onnxruntime",
-        transport: str = "mjpeg",
+        transport: str = "webrtc",
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:

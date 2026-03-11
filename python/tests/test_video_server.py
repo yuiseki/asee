@@ -363,7 +363,7 @@ class TestGodModeVideoServer:
         serve_http.assert_not_called()
 
     def test_http_root_returns_html(self) -> None:
-        server = GodModeVideoServer(port=18872, device_index=None)
+        server = GodModeVideoServer(port=18872, device_index=None, transport="mjpeg")
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
         assert wait_until(lambda: server.is_running)
@@ -379,7 +379,7 @@ class TestGodModeVideoServer:
             thread.join(timeout=3.0)
 
     def test_http_update_endpoint(self) -> None:
-        server = GodModeVideoServer(port=18873, device_index=None)
+        server = GodModeVideoServer(port=18873, device_index=None, transport="mjpeg")
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
         assert wait_until(lambda: server.is_running)
@@ -408,6 +408,7 @@ class TestGodModeVideoServer:
             port=18874,
             device_index=None,
             title="GOD MODE 18873",
+            transport="mjpeg",
         )
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()

@@ -51,7 +51,7 @@ class SeeingServerRuntime:
             prediction=self.overlay.prediction,
         )
         self.is_running = False
-        self.transport = "mjpeg"
+        self.transport = "webrtc"
         self.camera_ids: Sequence[int] = tuple(int(camera_id) for camera_id in camera_ids)
         self._primary_camera_id = self.camera_ids[0] if self.camera_ids else None
         self._jpeg_encoder = jpeg_encoder

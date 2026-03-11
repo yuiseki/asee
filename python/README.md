@@ -53,8 +53,9 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
-# staged low-latency transport over the same runtime state
-.venv/bin/python -m asee.video_server --port 8765 --transport webrtc
+# WebRTC is now the default transport; MJPEG remains available as a fallback
+.venv/bin/python -m asee.video_server --port 8765
+.venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
 # lower-risk multi-camera repro defaults
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # isolate camera/native pressure from face-detect pressure
@@ -65,13 +66,14 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
 
-- WebRTC is not the default runtime yet.
+- WebRTC is now the default runtime path for direct CLI launches.
 - The current staging modules are:
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
   - `asee.webrtc_video_track`
-- `asee.video_server --transport webrtc` now starts the staged signaling path against the same `SeeingServerRuntime`.
+- `asee.video_server` now starts the staged signaling path by default against the same `SeeingServerRuntime`.
+- `--transport mjpeg` keeps the old Flask/MJPEG path available as a compatibility fallback.
 - The existing `asee.video_server` centralized detection/runtime remains the source of truth that the later WebRTC path should wrap, not replace.
 - the official Electron viewer can now consume that staged path through the same preload snapshot contract, selecting WebRTC when `/status.transport` says so.
 - its staged WebRTC overlay now uses source-frame dimensions from the backend so face boxes stay aligned under `object-fit: cover` and keep the legacy OWNER/SUBJECT HUD styling.

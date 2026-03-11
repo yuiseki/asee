@@ -61,8 +61,9 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
-# staged WebRTC transport over the same runtime state
-.venv/bin/python -m asee.video_server --port 8765 --transport webrtc
+# WebRTC is now the default transport; MJPEG remains available as a fallback
+.venv/bin/python -m asee.video_server --port 8765
+.venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
 # safer multi-camera repro: lower-risk defaults + bounded lifetime
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # extra isolation: disable face-detect workers while checking capture stability
@@ -73,15 +74,15 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
 
-- MJPEG/Flask remains the default production path for now.
+- WebRTC is now the default transport for both direct CLI runs and `tmp_main.sh` starts.
 - A first WebRTC migration slice now exists in the Python package:
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
   - `asee.webrtc_video_track`
 - These modules are intentionally additive.
-- `asee.video_server --transport webrtc` now wires the staged signaling path to the same `SeeingServerRuntime`.
-- MJPEG/Flask still remains the production default.
+- `asee.video_server` now defaults to the staged signaling path over the same `SeeingServerRuntime`.
+- MJPEG/Flask remains available via `--transport mjpeg` as the compatibility fallback.
 
 ## Safety Policy
 

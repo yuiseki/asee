@@ -90,7 +90,7 @@ Accepted
 - the twelfth extracted slice adds a reusable remote biometric-status client
   - `asee.biometric_client.RemoteBiometricStatusClient`
   - `tmp/whispercpp-listen` can now fetch `/biometric_status` through `asee` instead of open-coding HTTP request glue
-- the thirteenth extracted slice stages WebRTC transport primitives without changing the production default
+- the thirteenth extracted slice stages WebRTC transport primitives before making it the production default
   - `asee.overlay_data.FaceDetection` / `OverlayFrame`
   - `asee.overlay_broadcaster.OverlayBroadcaster`
   - `asee.webrtc_signaling.create_webrtc_app()`
@@ -100,11 +100,12 @@ Accepted
   - `asee.webrtc_video_track.RuntimeVideoTrack`
   - `asee.webrtc_signaling.create_webrtc_app(runtime=...)`
   - WebRTC tracks now read frames, faces, overlay text, and biometric status directly from `SeeingServerRuntime`
-  - Flask/MJPEG still remains the production default until `asee.video_server` startup can select the staged WebRTC path explicitly
+  - Flask/MJPEG stays available as a compatibility fallback until the staged WebRTC path proves stable
 - the fifteenth extracted slice teaches `asee.video_server` to select the staged transport
   - `--transport mjpeg|webrtc`
   - `GodModeVideoServer.start()` now branches between Flask/Werkzeug and aiohttp/WebRTC serving paths
   - both paths continue to share the same capture, detection, biometric, and overlay runtime state
+  - WebRTC is now the default transport for direct CLI runs; MJPEG remains an explicit fallback
 - the sixteenth extracted slice teaches the official Electron viewer to consume the staged transport
   - `/status.transport` now drives the viewer mode
   - `mjpeg` keeps the existing `<img src="/stream/...">` path

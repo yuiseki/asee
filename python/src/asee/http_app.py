@@ -75,7 +75,7 @@ class InMemoryHttpRuntime:
     title: str = "GOD MODE"
     overlay_state: OverlayTextState = field(default_factory=OverlayTextState)
     is_running: bool = False
-    transport: str = "mjpeg"
+    transport: str = "webrtc"
     camera_ids: tuple[int, ...] = ()
     biometric_status: dict[str, BiometricStatusValue] = field(
         default_factory=lambda: {
