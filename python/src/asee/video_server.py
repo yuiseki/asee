@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import faulthandler
 import logging
 import os
@@ -38,8 +39,10 @@ from .diagnostics import (
 from .http_app import create_http_app
 from .model_assets import resolve_model_asset_path
 from .overlay import GodModeOverlay
+from .overlay_broadcaster import OverlayBroadcaster
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
+from .webrtc_signaling import create_webrtc_app
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +266,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="onnxruntime",
         help="顔検出バックエンド: onnxruntime (既定, CUDA GPU 推論) または opencv (CPU)",
     )
+    parser.add_argument(
+        "--transport",
+        choices=("mjpeg", "webrtc"),
+        default="mjpeg",
+        help="配信 transport。既定は MJPEG/Flask、webrtc は staged low-latency path",
+    )
     return parser
 
 
@@ -304,6 +313,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
+        transport=str(getattr(args, "transport", "mjpeg")),
     )
 
 
@@ -346,6 +356,7 @@ class GodModeVideoServer:
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
         detection_backend: str = "onnxruntime",
+        transport: str = "mjpeg",
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -379,6 +390,7 @@ class GodModeVideoServer:
         self._capture_period = 1.0 / self.capture_settings.fps
         self._capture_fourcc = self.capture_settings.fourcc
         self._enable_face_detection = enable_face_detection
+        self._transport = transport
         self._diagnostics = diagnostics_logger or NullDiagnosticsLogger()
         self._memory_monitor = MemoryMonitor(
             self._diagnostics,
@@ -440,6 +452,8 @@ class GodModeVideoServer:
             self._stream_revisions[device] = 0
             self._mjpeg_chunk_cache[device] = MjpegChunkCacheEntry()
         self._app = create_http_app(self.runtime, request_logger=self._record_http_request)
+        self._webrtc_broadcaster = OverlayBroadcaster()
+        self._http_server: werkzeug.serving.BaseWSGIServer | None = None
         self._load_owner_embedding(owner_embedding_path)
 
     @property
@@ -515,6 +529,7 @@ class GodModeVideoServer:
             requested_fourcc=self._capture_fourcc,
             opencv_threads=self._opencv_threads,
             face_detection_enabled=self._enable_face_detection,
+            transport=self._transport,
             opencv_version=cv2.__version__,
             python_version=platform.python_version(),
             platform=platform.platform(),
@@ -545,26 +560,25 @@ class GodModeVideoServer:
             self.update_frame(np.zeros((self.height, self.width, 3), dtype=np.uint8))
             self._diagnostics.log_event("camera_capture_disabled")
 
-        server = werkzeug.serving.make_server(
-            "0.0.0.0",
-            self.port,
-            self._app,
-            threaded=True,
-        )
-        server.socket.settimeout(1.0)
+        if self._transport == "mjpeg":
+            self._http_server = werkzeug.serving.make_server(
+                "0.0.0.0",
+                self.port,
+                self._app,
+                threaded=True,
+            )
+            self._http_server.socket.settimeout(1.0)
+
         self.is_running = True
         self.runtime.set_running(True)
-        self._diagnostics.log_event("server_started", port=self.port)
+        self._diagnostics.log_event("server_started", port=self.port, transport=self._transport)
 
         try:
-            while not self._stop_event.is_set():
-                try:
-                    server.handle_request()
-                except OSError as error:
-                    logger.warning("HTTP server request loop error: %s", error)
-                    self._diagnostics.log_event("http_server_oserror", error=repr(error))
+            if self._transport == "webrtc":
+                self._serve_webrtc()
+            else:
+                self._serve_http()
         finally:
-            server.server_close()
             self._stop_event.set()
             for thread in self._worker_threads:
                 thread.join(timeout=1.0)
@@ -588,6 +602,45 @@ class GodModeVideoServer:
         self._stop_event.set()
         with self._stream_state_changed:
             self._stream_state_changed.notify_all()
+
+    def _serve_http(self) -> None:
+        server = self._http_server
+        if server is None:
+            raise RuntimeError("HTTP server is not initialized")
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    server.handle_request()
+                except OSError as error:
+                    logger.warning("HTTP server request loop error: %s", error)
+                    self._diagnostics.log_event("http_server_oserror", error=repr(error))
+        finally:
+            server.server_close()
+            self._http_server = None
+
+    def _create_webrtc_app(self) -> Any:
+        return create_webrtc_app(
+            runtime=self.runtime,
+            broadcaster=self._webrtc_broadcaster,
+            fps=max(1, int(round(self._capture_fps))),
+        )
+
+    def _serve_webrtc(self) -> None:
+        asyncio.run(self._serve_webrtc_async())
+
+    async def _serve_webrtc_async(self) -> None:
+        from aiohttp import web
+
+        app = self._create_webrtc_app()
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", self.port)
+        await site.start()
+        try:
+            while not self._stop_event.is_set():
+                await asyncio.sleep(0.1)
+        finally:
+            await runner.cleanup()
 
     def switch_camera(self, device_index: int) -> None:
         """Request a camera switch for the single-camera capture loop."""

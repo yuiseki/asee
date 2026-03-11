@@ -16,6 +16,7 @@ from asee.video_server import (
     CaptureSettings,
     GodModeVideoServer,
     LiveCameraDisabledError,
+    build_arg_parser,
     decode_fourcc_value,
     encode_frame_to_jpeg,
     resolve_opencv_threads,
@@ -58,11 +59,23 @@ class TestEncodeFrameToJpeg:
 
 
 class TestGodModeVideoServer:
+    def test_arg_parser_accepts_webrtc_transport(self) -> None:
+        parser = build_arg_parser()
+
+        args = parser.parse_args(["--transport", "webrtc"])
+
+        assert args.transport == "webrtc"
+
     def test_instantiation(self) -> None:
         server = GodModeVideoServer(port=18865, device_index=0, allow_live_camera=True)
 
         assert server.port == 18865
         assert server.is_running is False
+
+    def test_server_stores_transport_mode(self) -> None:
+        server = GodModeVideoServer(port=188659, device_index=None, transport="webrtc")
+
+        assert server._transport == "webrtc"
 
     def test_single_camera_defaults_to_720p_30fps_mjpg(self) -> None:
         server = GodModeVideoServer(port=188651, device_index=0, allow_live_camera=True)
@@ -334,6 +347,20 @@ class TestGodModeVideoServer:
         thread.join(timeout=3.0)
 
         assert server.is_running is False
+
+    def test_start_uses_webrtc_serving_path_when_transport_selected(self) -> None:
+        server = GodModeVideoServer(port=188711, device_index=None, transport="webrtc")
+
+        with (
+            patch.object(server, "_serve_webrtc") as serve_webrtc,
+            patch.object(server, "_serve_http") as serve_http,
+        ):
+            serve_webrtc.side_effect = lambda: server.stop()
+
+            server.start()
+
+        serve_webrtc.assert_called_once_with()
+        serve_http.assert_not_called()
 
     def test_http_root_returns_html(self) -> None:
         server = GodModeVideoServer(port=18872, device_index=None)

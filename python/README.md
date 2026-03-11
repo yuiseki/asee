@@ -52,6 +52,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# staged low-latency transport over the same runtime state
+.venv/bin/python -m asee.video_server --port 8765 --transport webrtc
 # lower-risk multi-camera repro defaults
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # isolate camera/native pressure from face-detect pressure
@@ -68,6 +70,7 @@ python3 -m venv .venv
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
   - `asee.webrtc_video_track`
+- `asee.video_server --transport webrtc` now starts the staged signaling path against the same `SeeingServerRuntime`.
 - The existing `asee.video_server` centralized detection/runtime remains the source of truth that the later WebRTC path should wrap, not replace.
 
 ## Safety And Diagnostics
@@ -171,7 +174,6 @@ python3 -m venv .venv
 
 ## Planned Next Slice
 
-- wire `asee.video_server` startup path to choose the staged WebRTC transport when requested
 - add codec selection inside `repos/asee/python`
 - migrate the Electron viewer away from `<img src=\"/stream/...\">` to WebRTC + Canvas overlay
 - replace direct detector/classifier orchestration from `tmp/_trash/GOD_MODE` with `asee.overlay.GodModeOverlay`

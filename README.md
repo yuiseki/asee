@@ -59,6 +59,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765
 # live camera is opt-in only
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera
+# staged WebRTC transport over the same runtime state
+.venv/bin/python -m asee.video_server --port 8765 --transport webrtc
 # safer multi-camera repro: lower-risk defaults + bounded lifetime
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # extra isolation: disable face-detect workers while checking capture stability
@@ -75,7 +77,9 @@ python3 -m venv .venv
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
   - `asee.webrtc_video_track`
-- These modules are intentionally additive. They do not replace `asee.video_server` yet.
+- These modules are intentionally additive.
+- `asee.video_server --transport webrtc` now wires the staged signaling path to the same `SeeingServerRuntime`.
+- MJPEG/Flask still remains the production default.
 
 ## Safety Policy
 

@@ -110,6 +110,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         disable_face_detect=True,
         detection_backend="opencv",
+        transport="mjpeg",
     )
 
     with (
@@ -139,6 +140,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         enable_face_detection=False,
         detection_backend="opencv",
+        transport="mjpeg",
     )
 
 
@@ -164,6 +166,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
+        transport="mjpeg",
     )
 
     with (
@@ -203,6 +206,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
+        transport="mjpeg",
     )
 
     with pytest.raises(LiveCameraDisabledError, match="allow-live-camera"):
@@ -250,6 +254,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="onnxruntime",
+        transport="mjpeg",
     )
 
     with (
@@ -260,6 +265,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
 
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
+    assert call_kwargs.get("transport") == "mjpeg"
 
 
 def test_main_builds_server_and_starts_it() -> None:
