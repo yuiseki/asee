@@ -756,7 +756,6 @@ class GodModeVideoServer:
             normalized = self._normalize_frame(frame)
             self.update_frame(normalized)
             self._record_capture_success(current_device, normalized)
-            time.sleep(self._capture_period)
 
         cap.release()
         logger.info("Camera released")
@@ -778,7 +777,6 @@ class GodModeVideoServer:
             normalized = self._normalize_frame(frame)
             self.update_frame(normalized, camera_id=device)
             self._record_capture_success(device, normalized)
-            time.sleep(self._capture_period)
 
         cap.release()
         logger.info("Camera %s released", device)

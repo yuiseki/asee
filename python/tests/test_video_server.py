@@ -719,3 +719,75 @@ class TestOpenCameraResolution:
 
         assert normalized.shape == (720, 1280, 3)
         assert normalized is frame
+
+
+class TestCaptureLoopPacing:
+    def test_capture_loop_device_does_not_sleep_after_successful_read(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[2],
+            allow_live_camera=True,
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        class FakeCap:
+            def __init__(self) -> None:
+                self.released = False
+
+            def read(self) -> tuple[bool, np.ndarray]:
+                return True, frame
+
+            def release(self) -> None:
+                self.released = True
+
+        fake_cap = FakeCap()
+
+        def stop_after_success(*_args: object) -> None:
+            server.stop()
+
+        with (
+            patch.object(server, "_open_camera", return_value=fake_cap),
+            patch.object(
+                server,
+                "_record_capture_success",
+                side_effect=stop_after_success,
+            ),
+            patch("asee.video_server.time.sleep") as sleep,
+        ):
+            server._capture_loop_device(2)
+
+        sleep.assert_not_called()
+        assert fake_cap.released is True
+
+    def test_capture_loop_device_keeps_failure_backoff_sleep(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[2],
+            allow_live_camera=True,
+        )
+
+        class FakeCap:
+            def __init__(self) -> None:
+                self.released = False
+                self.calls = 0
+
+            def read(self) -> tuple[bool, np.ndarray | None]:
+                self.calls += 1
+                if self.calls == 1:
+                    return False, None
+                server.stop()
+                return False, None
+
+            def release(self) -> None:
+                self.released = True
+
+        fake_cap = FakeCap()
+
+        with (
+            patch.object(server, "_open_camera", return_value=fake_cap),
+            patch("asee.video_server.time.sleep") as sleep,
+        ):
+            server._capture_loop_device(2)
+
+        sleep.assert_any_call(0.05)
+        assert fake_cap.released is True
