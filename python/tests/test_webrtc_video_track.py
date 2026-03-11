@@ -177,3 +177,42 @@ def test_runtime_video_track_broadcasts_overlay_when_faces_change() -> None:
         assert '"x": 50' in payloads[1]
 
     asyncio.run(scenario())
+
+
+def test_runtime_video_track_reuses_yuv_frame_when_revision_is_unchanged(monkeypatch) -> None:
+    async def scenario() -> None:
+        runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+        frame = np.full((120, 160, 3), 11, dtype=np.uint8)
+        runtime.update_frame(frame, camera_id=2)
+        track = RuntimeVideoTrack(runtime, camera_id=2, fps=1000, broadcaster=None)
+
+        calls: list[np.ndarray] = []
+
+        class FakeYuvFrame:
+            def __init__(self) -> None:
+                self.pts = None
+                self.time_base = None
+                self.width = 160
+                self.height = 120
+
+        converted = FakeYuvFrame()
+
+        def fake_to_yuv420_frame(array: np.ndarray) -> FakeYuvFrame:
+            calls.append(array)
+            return converted
+
+        monkeypatch.setattr(
+            webrtc_video_track_module,
+            "_to_yuv420_frame",
+            fake_to_yuv420_frame,
+        )
+
+        first = await track.recv()
+        second = await track.recv()
+
+        assert first is converted
+        assert second is converted
+        assert len(calls) == 1
+        assert calls[0] is frame
+
+    asyncio.run(scenario())

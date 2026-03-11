@@ -80,6 +80,8 @@ class RuntimeVideoTrack(VideoStreamTrack):
         self._last_frame = _black_frame()
         self._last_revision = self._runtime.get_frame_revision(self._camera_id)
         self._last_overlay_signature: tuple[object, ...] | None = None
+        self._last_yuv_revision: int | None = None
+        self._last_yuv_frame: av.VideoFrame | None = None
 
     async def recv(self) -> av.VideoFrame:
         self._last_revision = await asyncio.to_thread(
@@ -134,7 +136,10 @@ class RuntimeVideoTrack(VideoStreamTrack):
                 )
 
         self._seq += 1
-        yuv_frame = _to_yuv420_frame(frame)
+        if self._last_yuv_revision != self._last_revision or self._last_yuv_frame is None:
+            self._last_yuv_frame = _to_yuv420_frame(frame)
+            self._last_yuv_revision = self._last_revision
+        yuv_frame = self._last_yuv_frame
         yuv_frame.pts = self._pts
         yuv_frame.time_base = self._TIME_BASE
         self._pts += self._pts_step
