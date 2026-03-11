@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -58,5 +59,27 @@ def test_runtime_video_track_uses_runtime_frame_and_broadcasts_overlay() -> None
         assert '"frame_height": 180' in payloads[0]
         assert '"label": "OWNER"' in payloads[0]
         assert '"caption": "OBSERVING"' in payloads[0]
+
+    asyncio.run(scenario())
+
+
+def test_runtime_video_track_returns_soon_after_new_frame_arrives() -> None:
+    async def scenario() -> None:
+        runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+        track = RuntimeVideoTrack(runtime, camera_id=2, fps=10, broadcaster=None)
+
+        async def push_frame() -> None:
+            await asyncio.sleep(0.01)
+            runtime.update_frame(np.full((120, 160, 3), 7, dtype=np.uint8), camera_id=2)
+
+        start = time.perf_counter()
+        producer = asyncio.create_task(push_frame())
+        video_frame = await track.recv()
+        elapsed = time.perf_counter() - start
+        await producer
+
+        assert video_frame.width == 160
+        assert video_frame.height == 120
+        assert elapsed < 0.08
 
     asyncio.run(scenario())

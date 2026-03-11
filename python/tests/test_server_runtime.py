@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -153,3 +155,36 @@ def test_transport_defaults_to_webrtc_and_is_mutable():
     runtime.transport = "mjpeg"
 
     assert runtime.transport == "mjpeg"
+
+
+def test_frame_revision_increments_when_primary_frame_updates():
+    runtime = SeeingServerRuntime(overlay=FakeOverlay())
+
+    first = runtime.get_frame_revision()
+    runtime.update_frame(make_frame())
+    second = runtime.get_frame_revision()
+
+    assert first == 0
+    assert second == 1
+
+
+def test_wait_for_frame_update_returns_new_revision_before_timeout():
+    runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+    observed: list[int] = []
+
+    def wait_in_thread() -> None:
+        observed.append(
+            runtime.wait_for_frame_update(
+                camera_id=2,
+                after_revision=0,
+                timeout_sec=0.5,
+            )
+        )
+
+    worker = threading.Thread(target=wait_in_thread)
+    worker.start()
+    time.sleep(0.05)
+    runtime.update_frame(make_frame(width=640, height=480), camera_id=2)
+    worker.join(timeout=1.0)
+
+    assert observed == [1]

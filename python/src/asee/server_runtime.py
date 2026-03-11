@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Protocol, cast
@@ -61,6 +62,11 @@ class SeeingServerRuntime:
         self._frames_by_camera: dict[int, FrameArray | None] = {
             camera_id: None for camera_id in self.camera_ids
         }
+        self._frame_revision = 0
+        self._frame_revisions_by_camera: dict[int, int] = {
+            camera_id: 0 for camera_id in self.camera_ids
+        }
+        self._frame_condition = threading.Condition()
         self._faces: list[FaceLike] = []
         self._faces_by_camera: dict[int, list[FaceLike]] = {
             camera_id: [] for camera_id in self.camera_ids
@@ -84,21 +90,50 @@ class SeeingServerRuntime:
         self.overlay_state = OverlayTextState(caption=caption, prediction=prediction)
 
     def update_frame(self, frame: FrameArray, *, camera_id: int | None = None) -> None:
-        if self.camera_ids:
-            if camera_id is None:
-                raise ValueError("camera_id is required when tracking multiple cameras")
-            current_camera_id = int(camera_id)
-            self._frames_by_camera[current_camera_id] = frame
-            if current_camera_id == self._primary_camera_id:
-                self.current_frame = frame
-            return
+        with self._frame_condition:
+            self._frame_revision += 1
+            if self.camera_ids:
+                if camera_id is None:
+                    raise ValueError("camera_id is required when tracking multiple cameras")
+                current_camera_id = int(camera_id)
+                self._frames_by_camera[current_camera_id] = frame
+                self._frame_revisions_by_camera[current_camera_id] += 1
+                if current_camera_id == self._primary_camera_id:
+                    self.current_frame = frame
+                self._frame_condition.notify_all()
+                return
 
-        self.current_frame = frame
+            self.current_frame = frame
+            self._frame_condition.notify_all()
 
     def get_frame(self, camera_id: int | None = None) -> FrameArray | None:
         if camera_id is None or not self.camera_ids:
             return self.current_frame
         return self._frames_by_camera.get(int(camera_id))
+
+    def get_frame_revision(self, camera_id: int | None = None) -> int:
+        if camera_id is None or not self.camera_ids:
+            return self._frame_revision
+        return self._frame_revisions_by_camera.get(int(camera_id), 0)
+
+    def wait_for_frame_update(
+        self,
+        *,
+        camera_id: int | None = None,
+        after_revision: int,
+        timeout_sec: float,
+    ) -> int:
+        def current_revision() -> int:
+            return self.get_frame_revision(camera_id)
+
+        with self._frame_condition:
+            if current_revision() > after_revision:
+                return current_revision()
+            self._frame_condition.wait_for(
+                lambda: current_revision() > after_revision,
+                timeout=max(0.0, timeout_sec),
+            )
+            return current_revision()
 
     def record_faces(
         self,

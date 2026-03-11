@@ -45,9 +45,15 @@ class RuntimeVideoTrack(VideoStreamTrack):
         self._pts = 0
         self._pts_step = int(90000 / self._fps)
         self._last_frame = _black_frame()
+        self._last_revision = self._runtime.get_frame_revision(self._camera_id)
 
     async def recv(self) -> av.VideoFrame:
-        await asyncio.sleep(1.0 / self._fps)
+        self._last_revision = await asyncio.to_thread(
+            self._runtime.wait_for_frame_update,
+            camera_id=self._camera_id,
+            after_revision=self._last_revision,
+            timeout_sec=1.0 / self._fps,
+        )
 
         frame = self._runtime.get_frame(self._camera_id)
         if frame is None:
