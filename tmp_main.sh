@@ -210,7 +210,7 @@ wait_for_server() {
   echo -n "Waiting for server ${SERVER_URL}"
   local attempt
   for attempt in $(seq 1 20); do
-    if curl -sf "${SERVER_URL}/status" 2>/dev/null | grep -q '"running":true'; then
+    if curl -sf "${SERVER_URL}/status" 2>/dev/null | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
       echo " ready (${attempt}s)"
       return 0
     fi

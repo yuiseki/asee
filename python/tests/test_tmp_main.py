@@ -93,7 +93,7 @@ with open(log_path, "a", encoding="utf-8") as handle:
     _write_executable(
         bin_dir / "curl",
         """#!/usr/bin/env bash
-printf '{"running":true}\\n'
+printf '{"running": true}\\n'
 """,
     )
     _write_executable(
