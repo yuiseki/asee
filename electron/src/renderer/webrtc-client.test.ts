@@ -4,6 +4,13 @@ import { connectWebRtcFeeds, type OverlayFrameMessage } from './webrtc-client';
 
 class FakeRtcPeerConnection {
   public addTransceiver = vi.fn();
+  public createDataChannel = vi.fn(
+    (label: string) =>
+      ({
+        label,
+        addEventListener: vi.fn(),
+      }) as unknown as RTCDataChannel,
+  );
   public createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'offer-sdp' }));
   public setLocalDescription = vi.fn(async (desc: RTCSessionDescriptionInit) => {
     this.localDescription = desc;
@@ -18,10 +25,17 @@ class FakeRtcPeerConnection {
 }
 
 describe('connectWebRtcFeeds', () => {
-  it('negotiates recvonly transceivers and routes tracks / overlay frames', async () => {
+  it('negotiates recvonly transceivers, creates overlay data channel, and routes tracks / overlay frames', async () => {
     const pc = new FakeRtcPeerConnection();
     const streamsByCamera = new Map<number, MediaStream>();
     const overlays: OverlayFrameMessage[] = [];
+    const messageHandlers: Array<(event: MessageEvent<string>) => void> = [];
+    pc.createDataChannel.mockReturnValue({
+      label: 'overlay',
+      addEventListener(_name: 'message', listener: (event: MessageEvent<string>) => void) {
+        messageHandlers.push(listener);
+      },
+    } as unknown as RTCDataChannel);
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ type: 'answer', sdp: 'answer-sdp' }), {
         status: 200,
@@ -43,6 +57,7 @@ describe('connectWebRtcFeeds', () => {
     });
 
     expect(pc.addTransceiver).toHaveBeenCalledTimes(2);
+    expect(pc.createDataChannel).toHaveBeenCalledWith('overlay');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://127.0.0.1:8765/offer',
       expect.objectContaining({
@@ -50,23 +65,25 @@ describe('connectWebRtcFeeds', () => {
       }),
     );
 
-    const firstStream = {} as MediaStream;
-    const secondStream = {} as MediaStream;
-    pc.ontrack?.({ streams: [firstStream] } as unknown as RTCTrackEvent);
-    pc.ontrack?.({ streams: [secondStream] } as unknown as RTCTrackEvent);
+    class FakeMediaStream {
+      public tracks: MediaStreamTrack[];
 
-    expect(streamsByCamera.get(0)).toBe(firstStream);
-    expect(streamsByCamera.get(2)).toBe(secondStream);
+      constructor(tracks: MediaStreamTrack[] = []) {
+        this.tracks = tracks;
+      }
+    }
 
-    const messageHandlers: Array<(event: MessageEvent<string>) => void> = [];
-    pc.ondatachannel?.({
-      channel: {
-        label: 'overlay',
-        addEventListener(_name: 'message', listener: (event: MessageEvent<string>) => void) {
-          messageHandlers.push(listener);
-        },
-      },
-    } as unknown as RTCDataChannelEvent);
+    vi.stubGlobal('MediaStream', FakeMediaStream);
+
+    const firstTrack = { id: 'track-0' } as MediaStreamTrack;
+    const secondTrack = { id: 'track-2' } as MediaStreamTrack;
+    const sharedStream = {} as MediaStream;
+    pc.ontrack?.({ track: firstTrack, streams: [sharedStream] } as unknown as RTCTrackEvent);
+    pc.ontrack?.({ track: secondTrack, streams: [sharedStream] } as unknown as RTCTrackEvent);
+
+    expect((streamsByCamera.get(0) as unknown as FakeMediaStream).tracks).toEqual([firstTrack]);
+    expect((streamsByCamera.get(2) as unknown as FakeMediaStream).tracks).toEqual([secondTrack]);
+
     messageHandlers[0]?.(
       new MessageEvent('message', {
         data: JSON.stringify({
@@ -91,5 +108,6 @@ describe('connectWebRtcFeeds', () => {
 
     session.close();
     expect(pc.close).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
   });
 });

@@ -22,6 +22,13 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
+function buildTrackStream(event: RTCTrackEvent): MediaStream | null {
+  if (event.track != null && typeof MediaStream !== 'undefined') {
+    return new MediaStream([event.track]);
+  }
+  return event.streams[0] ?? null;
+}
+
 export async function connectWebRtcFeeds({
   baseUrl,
   cameraIds,
@@ -46,8 +53,13 @@ export async function connectWebRtcFeeds({
     peerConnection.addTransceiver('video', { direction: 'recvonly' });
   }
 
+  const overlayChannel = peerConnection.createDataChannel('overlay');
+  overlayChannel.addEventListener('message', (messageEvent) => {
+    onOverlayFrame(JSON.parse(String(messageEvent.data)) as OverlayFrameMessage);
+  });
+
   peerConnection.ontrack = (event) => {
-    const stream = event.streams[0];
+    const stream = buildTrackStream(event);
     if (!stream) {
       return;
     }
@@ -55,15 +67,6 @@ export async function connectWebRtcFeeds({
       resolvedCameraIds[Math.min(nextTrackIndex, resolvedCameraIds.length - 1)] ?? resolvedCameraIds[0];
     nextTrackIndex += 1;
     onStream(cameraId, stream);
-  };
-
-  peerConnection.ondatachannel = (event) => {
-    if (event.channel.label !== 'overlay') {
-      return;
-    }
-    event.channel.addEventListener('message', (messageEvent) => {
-      onOverlayFrame(JSON.parse(String(messageEvent.data)) as OverlayFrameMessage);
-    });
   };
 
   const offer = await peerConnection.createOffer();
