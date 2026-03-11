@@ -87,7 +87,7 @@ class TestGodModeVideoServer:
             fourcc="MJPG",
         )
 
-    def test_multicamera_defaults_to_lower_risk_capture_profile(self) -> None:
+    def test_multicamera_defaults_to_720p_10fps_profile(self) -> None:
         server = GodModeVideoServer(
             port=188652,
             device_index=None,
@@ -96,8 +96,8 @@ class TestGodModeVideoServer:
         )
 
         assert server.capture_settings == CaptureSettings(
-            width=640,
-            height=360,
+            width=1280,
+            height=720,
             fps=10.0,
             fourcc="MJPG",
         )

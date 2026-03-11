@@ -64,12 +64,14 @@ python3 -m venv .venv
 # WebRTC is now the default transport; MJPEG remains available as a fallback
 .venv/bin/python -m asee.video_server --port 8765
 .venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
-# safer multi-camera repro: lower-risk defaults + bounded lifetime
+# bounded current multicamera default
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # extra isolation: disable face-detect workers while checking capture stability
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
 # bounded 720p multi-camera trial
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --capture-profile 720p --opencv-threads 1 --auto-shutdown-sec 30
+# explicit low-resolution fallback experiment
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --width 640 --height 360 --fps 10 --opencv-threads 1 --auto-shutdown-sec 30
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
@@ -88,9 +90,9 @@ python3 -m venv .venv
 
 - `asee.video_server` now defaults to no-camera mode. `--device` defaults to `-1`, and live capture is blocked unless `--allow-live-camera` is present.
 - single-camera runs keep the higher-fidelity default request: `1280x720 @ 30fps MJPG`.
-- multi-camera runs now default to a lower-risk request: `640x360 @ 10fps MJPG`.
-- `--capture-profile 720p` is the simplest explicit opt-in when both rendering and recognition should stay at `1280x720`; for multi-camera it keeps `10fps MJPG`.
-- current OWNER enrollment still collects embeddings through a `1280x720` overlay path, so the lower-risk multi-camera profile trades recognition quality for stability.
+- multi-camera runs now default back to `1280x720 @ 10fps MJPG`.
+- `--capture-profile 720p` remains as the explicit name for that multicamera operating point.
+- current OWNER enrollment still collects embeddings through a `1280x720` overlay path, so the restored multicamera default now stays closer to enrollment conditions.
 - if recognition quality matters more than load, either re-enroll under the same runtime conditions or move detection/embedding back to a higher-resolution capture path.
 - operators can override the requested capture mode explicitly with `--width`, `--height`, `--fps`, and `--fourcc`.
 - multi-camera runs also cap OpenCV's internal worker pool to `1` thread by default; `--opencv-threads` can override this when a controlled benchmark needs it.

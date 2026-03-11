@@ -136,7 +136,7 @@ def resolve_capture_settings(
         )
     else:
         base = (
-            CaptureSettings(width=640, height=360, fps=10.0, fourcc="MJPG")
+            CaptureSettings(width=1280, height=720, fps=10.0, fourcc="MJPG")
             if len(camera_ids) > 1
             else CaptureSettings(width=1280, height=720, fps=30.0, fourcc="MJPG")
         )
@@ -239,7 +239,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--capture-profile",
         choices=("auto", "720p"),
         default="auto",
-        help="既定キャプチャ profile。auto は低リスク既定、720p は 1280x720 を要求する",
+        help=(
+            "既定キャプチャ profile。"
+            "auto は現在の camera topology 既定、720p は 1280x720 を要求する"
+        ),
     )
     parser.add_argument("--width", type=int, default=None, help="キャプチャ要求幅")
     parser.add_argument("--height", type=int, default=None, help="キャプチャ要求高さ")

@@ -56,12 +56,14 @@ python3 -m venv .venv
 # WebRTC is now the default transport; MJPEG remains available as a fallback
 .venv/bin/python -m asee.video_server --port 8765
 .venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
-# lower-risk multi-camera repro defaults
+# bounded current multicamera default
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # isolate camera/native pressure from face-detect pressure
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
 # bounded 720p multi-camera trial
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --capture-profile 720p --opencv-threads 1 --auto-shutdown-sec 30
+# explicit low-resolution fallback experiment
+.venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --width 640 --height 360 --fps 10 --opencv-threads 1 --auto-shutdown-sec 30
 # bounded live test window
 .venv/bin/python -m asee.video_server --port 8765 --device 0 --allow-live-camera --auto-shutdown-sec 180
 ```
@@ -82,10 +84,10 @@ python3 -m venv .venv
 
 - `asee.video_server` defaults to no-camera mode. Passing `--device 0` is not enough; live capture also requires `--allow-live-camera`.
 - single-camera default capture profile stays `1280x720 @ 30fps MJPG`.
-- multi-camera default capture profile is intentionally reduced to `640x360 @ 10fps MJPG`.
-- `--capture-profile 720p` is the explicit shortcut when both rendering and recognition should stay at `1280x720`; multi-camera keeps `10fps MJPG` for bounded trials.
-- `asee.enroll_owner` still captures OWNER embeddings through a `1280x720` overlay path, so the multi-camera safe profile knowingly gives up some biometric fidelity to stay below the crash threshold.
-- if that tradeoff is unacceptable, the next safer move is to keep rendering low-resolution while restoring a higher-resolution capture path for detection and embedding.
+- multi-camera default capture profile now returns to `1280x720 @ 10fps MJPG`.
+- `--capture-profile 720p` remains the explicit shortcut for that multicamera operating point.
+- `asee.enroll_owner` still captures OWNER embeddings through a `1280x720` overlay path, so the restored multi-camera default now matches enrollment conditions more closely.
+- if load becomes unacceptable, the explicit fallback is now to lower `--width/--height/--fps` for the experiment instead of relying on the default path.
 - `--width`, `--height`, `--fps`, and `--fourcc` can override the requested capture mode when a controlled experiment needs it.
 - multi-camera runs also default OpenCV's internal worker pool to `1`; `--opencv-threads` can override that when a benchmark explicitly needs more.
 - YuNet, SFace, and `owner_embedding.npy` are now resolved only from `python/src/asee/models/`.

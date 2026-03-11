@@ -64,10 +64,10 @@ Accepted
   - `asee.video_server` defaults to no-camera mode
   - live webcam access requires an explicit `--allow-live-camera` opt-in
   - single-camera mode keeps a higher-fidelity default request (`1280x720 @ 30fps MJPG`)
-  - multi-camera mode now drops to a lower-risk default request (`640x360 @ 10fps MJPG`)
-  - an explicit `--capture-profile 720p` path exists for the simpler "recognition and rendering both stay 720p" choice; multi-camera keeps `10fps MJPG`
-  - OWNER enrollment still runs through a `1280x720` overlay path, so the low-risk multi-camera profile intentionally trades some recognition fidelity for crash resistance
-  - decoupling detection/embedding resolution from rendered stream resolution remains possible later, but it is no longer required for the first accuracy recovery step
+  - multi-camera mode now defaults back to `1280x720 @ 10fps MJPG`
+  - `--capture-profile 720p` remains as the explicit name for that multicamera operating point
+  - OWNER enrollment still runs through a `1280x720` overlay path, so the restored multicamera default stays closer to enrollment conditions
+  - explicit `--width` / `--height` / `--fps` overrides remain the pressure-relief path when operators need a lower-resolution experiment
   - capture-mode overrides are explicit via `--width`, `--height`, `--fps`, and `--fourcc`
   - multi-camera mode also caps OpenCV's internal worker pool to a single thread unless explicitly overridden
   - detector pressure can be removed with `--disable-face-detect`
