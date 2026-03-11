@@ -96,6 +96,11 @@ Accepted
   - `asee.webrtc_signaling.create_webrtc_app()`
   - the staged signaling app preserves compatibility endpoints (`/cameras`, `/overlay_text`, `/status`, `/biometric_status`) while adding `POST /offer`
   - Flask/MJPEG remains the default runtime path until the staged WebRTC path is wired to the centralized detection/runtime already living in `asee.video_server`
+- the fourteenth extracted slice wires the staged WebRTC transport to the existing runtime state
+  - `asee.webrtc_video_track.RuntimeVideoTrack`
+  - `asee.webrtc_signaling.create_webrtc_app(runtime=...)`
+  - WebRTC tracks now read frames, faces, overlay text, and biometric status directly from `SeeingServerRuntime`
+  - Flask/MJPEG still remains the production default until `asee.video_server` startup can select the staged WebRTC path explicitly
 - OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
@@ -126,3 +131,4 @@ Accepted
   - Electron viewer plus temporary operator launcher in `repos/asee`
 - WebRTC migration can now proceed as an additive transport/viewer replacement instead of a full backend rewrite
 - the staged signaling slice gives us a low-risk place to connect the existing centralized GPU detection/runtime before changing operator defaults
+- the staged WebRTC path now depends on the same runtime state as the Flask path, so the remaining migration work is transport startup selection and viewer replacement, not a second backend

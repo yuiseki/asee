@@ -17,6 +17,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
     - overlay JSON payloads
     - overlay broadcaster
     - aiohttp + aiortc signaling app factory
+    - runtime-backed WebRTC video track that reads `SeeingServerRuntime`
 - `electron/`
   - Electron + React + TypeScript viewer
   - already reads the existing GOD MODE HTTP contract through a preload bridge
@@ -73,6 +74,7 @@ python3 -m venv .venv
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
+  - `asee.webrtc_video_track`
 - These modules are intentionally additive. They do not replace `asee.video_server` yet.
 
 ## Safety Policy

@@ -21,6 +21,7 @@ Python backend for camera recognition and biometric status inside `repos/asee`.
     - overlay payload schema
     - overlay broadcaster
     - aiohttp + aiortc signaling app factory
+    - runtime-backed WebRTC video track over `SeeingServerRuntime`
 - `god_mode_predictor.py` is intentionally excluded from migration for now
 
 ## Commands
@@ -66,6 +67,7 @@ python3 -m venv .venv
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`
   - `asee.webrtc_signaling`
+  - `asee.webrtc_video_track`
 - The existing `asee.video_server` centralized detection/runtime remains the source of truth that the later WebRTC path should wrap, not replace.
 
 ## Safety And Diagnostics
@@ -159,6 +161,9 @@ python3 -m venv .venv
 - `asee.webrtc_signaling`
   - `create_webrtc_app()`
   - staged `/offer` + compatibility `/cameras` `/overlay_text` `/status` `/biometric_status`
+- `asee.webrtc_video_track`
+  - `RuntimeVideoTrack`
+  - reads frames/faces/overlay text directly from `SeeingServerRuntime`
 - `asee.enroll_owner`
   - `fetch_frame_from_server()`
   - `run_enrollment()`
@@ -166,8 +171,8 @@ python3 -m venv .venv
 
 ## Planned Next Slice
 
-- wire `asee.video_server` state and centralized detection results into `asee.webrtc_signaling`
-- add `VideoStreamTrack` wrappers and codec selection inside `repos/asee/python`
+- wire `asee.video_server` startup path to choose the staged WebRTC transport when requested
+- add codec selection inside `repos/asee/python`
 - migrate the Electron viewer away from `<img src=\"/stream/...\">` to WebRTC + Canvas overlay
 - replace direct detector/classifier orchestration from `tmp/_trash/GOD_MODE` with `asee.overlay.GodModeOverlay`
 - add a compatibility runtime adapter so `tmp/_trash/GOD_MODE` can call `asee` modules as the new source of truth
