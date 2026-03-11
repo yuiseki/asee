@@ -189,7 +189,10 @@ export function App() {
   const isWebRtc = snapshot?.status.transport === 'webrtc';
   const cameraKey = feeds.map((feed) => feed.cameraId ?? 'live').join(',');
   const baseUrl = snapshot?.baseUrl ?? '';
-  const cameraIds = snapshot?.cameras ?? EMPTY_CAMERA_IDS;
+  const webRtcCameraIds = useMemo(
+    () => (snapshot?.cameras ? [...snapshot.cameras] : EMPTY_CAMERA_IDS),
+    [cameraKey],
+  );
 
   useEffect(() => {
     if (!isWebRtc || baseUrl === '') {
@@ -205,7 +208,7 @@ export function App() {
 
     void connectWebRtcFeeds({
       baseUrl,
-      cameraIds,
+      cameraIds: webRtcCameraIds,
       onStream: (cameraId, stream) => {
         if (cancelled) {
           return;
@@ -244,7 +247,7 @@ export function App() {
       cancelled = true;
       session?.close();
     };
-  }, [baseUrl, cameraIds, cameraKey, isWebRtc]);
+  }, [baseUrl, cameraKey, isWebRtc, webRtcCameraIds]);
 
   return (
     <main className="viewer-shell">

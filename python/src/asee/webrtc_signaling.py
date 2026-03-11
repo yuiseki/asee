@@ -33,6 +33,16 @@ def _default_biometric_status() -> dict[str, bool | int | float | None]:
     }
 
 
+def _schedule_peer_close(peer: RTCPeerConnection) -> None:
+    async def close_peer() -> None:
+        try:
+            await peer.close()
+        finally:
+            _peer_connections.discard(peer)
+
+    asyncio.get_running_loop().create_task(close_peer())
+
+
 async def _handle_offer(
     request: web.Request,
     *,
@@ -61,14 +71,16 @@ async def _handle_offer(
     def on_connection_state_change() -> None:
         if peer.connectionState not in ("failed", "closed"):
             return
-
-        async def close_peer() -> None:
-            await peer.close()
-            _peer_connections.discard(peer)
-
-        asyncio.get_running_loop().create_task(close_peer())
+        _schedule_peer_close(peer)
 
     peer.on("connectionstatechange", on_connection_state_change)
+
+    def on_ice_connection_state_change() -> None:
+        if peer.iceConnectionState not in ("failed", "closed", "disconnected"):
+            return
+        _schedule_peer_close(peer)
+
+    peer.on("iceconnectionstatechange", on_ice_connection_state_change)
 
     if video_tracks_factory is not None:
         for track in video_tracks_factory():
@@ -204,5 +216,14 @@ def create_webrtc_app(
         static_path = Path(static_dir)
         if static_path.exists():
             app.router.add_static("/static", static_path)
+
+    async def close_all_peers(_app: web.Application) -> None:
+        peers = list(_peer_connections)
+        if not peers:
+            return
+        await asyncio.gather(*(peer.close() for peer in peers), return_exceptions=True)
+        _peer_connections.clear()
+
+    app.on_shutdown.append(close_all_peers)
 
     return app

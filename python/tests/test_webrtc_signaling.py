@@ -8,8 +8,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
+from asee import webrtc_signaling
 from asee.overlay_broadcaster import OverlayBroadcaster
 from asee.server_runtime import SeeingServerRuntime
 from asee.webrtc_signaling import create_webrtc_app
@@ -20,6 +22,13 @@ async def _make_client(app: Any) -> Any:
     client = TestClient(server)
     await client.start_server()
     return client
+
+
+@pytest.fixture(autouse=True)
+def _reset_peer_connections() -> Any:
+    webrtc_signaling._peer_connections.clear()
+    yield
+    webrtc_signaling._peer_connections.clear()
 
 
 class FakeOverlay:
@@ -159,6 +168,44 @@ def test_runtime_offer_adds_one_track_per_camera(
 
             assert response.status == 200
             assert mock_pc.addTrack.call_count == 4
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+
+
+@patch("asee.webrtc_signaling.RTCPeerConnection")
+def test_status_drops_peer_count_when_ice_disconnects(
+    mock_pc_cls: Any,
+) -> None:
+    async def scenario() -> None:
+        handlers: dict[str, Any] = {}
+        mock_pc = AsyncMock()
+        mock_pc.connectionState = "connected"
+        mock_pc.iceConnectionState = "connected"
+        mock_pc.localDescription = MagicMock(type="answer", sdp="v=0\r\n")
+        mock_pc.createAnswer = AsyncMock(return_value=MagicMock(type="answer", sdp="v=0\r\n"))
+        mock_pc.setLocalDescription = AsyncMock()
+        mock_pc.setRemoteDescription = AsyncMock()
+        mock_pc.addTrack = MagicMock()
+        mock_pc.on = MagicMock(side_effect=lambda event, cb: handlers.setdefault(event, cb))
+        mock_pc_cls.return_value = mock_pc
+
+        app = create_webrtc_app(camera_ids=[0])
+        client = await _make_client(app)
+        try:
+            response = await client.post("/offer", json={"type": "offer", "sdp": "v=0\r\n"})
+            assert response.status == 200
+            status = await (await client.get("/status")).json()
+            assert status["connections"] == 1
+
+            mock_pc.iceConnectionState = "disconnected"
+            handlers["iceconnectionstatechange"]()
+            await asyncio.sleep(0)
+
+            status = await (await client.get("/status")).json()
+            assert status["connections"] == 0
+            mock_pc.close.assert_awaited()
         finally:
             await client.close()
 

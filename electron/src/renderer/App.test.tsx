@@ -182,4 +182,58 @@ describe('App', () => {
     expect(screen.getByTestId('webrtc-feed-2').tagName).toBe('VIDEO');
     expect(webrtcClient.connectWebRtcFeeds).toHaveBeenCalledOnce();
   });
+
+  it('does not reconnect WebRTC feeds on snapshot polls when transport and cameras stay the same', async () => {
+    vi.useFakeTimers();
+    const connectSpy = vi.spyOn(webrtcClient, 'connectWebRtcFeeds').mockResolvedValue({
+      close: vi.fn(),
+    });
+    const fetchSnapshot = vi.fn(async () => ({
+      baseUrl: 'http://127.0.0.1:8765',
+      cameras: [0, 2],
+      status: { running: true, transport: 'webrtc' as const },
+      overlayText: {
+        caption: '観測中',
+        prediction: '静穏',
+      },
+      biometricStatus: {
+        running: true,
+        ownerEmbeddingLoaded: true,
+        ownerPresent: true,
+        ownerCount: 1,
+        subjectCount: 0,
+        peopleCount: 1,
+        ownerSeenAgoMs: 120,
+        updatedAt: 1234.5,
+      },
+    }));
+
+    window.aseeViewerApi = {
+      fetchSnapshot,
+      getConfig: vi.fn(() => ({
+        title: 'ASEE Viewer',
+        backendBaseUrl: 'http://127.0.0.1:8765',
+        pollIntervalMs: 5000,
+        autoDemo: false,
+      })),
+    };
+
+    render(<App />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('webrtc-feed-0')).toBeInTheDocument();
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSnapshot).toHaveBeenCalledTimes(3);
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+  });
 });
