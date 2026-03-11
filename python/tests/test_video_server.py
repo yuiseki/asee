@@ -77,6 +77,16 @@ class TestGodModeVideoServer:
 
         assert server._transport == "webrtc"
 
+    def test_server_stores_webrtc_video_bitrate(self) -> None:
+        server = GodModeVideoServer(
+            port=1886591,
+            device_index=None,
+            transport="webrtc",
+            webrtc_video_bitrate_bps=2_750_000,
+        )
+
+        assert server._webrtc_video_bitrate_bps == 2_750_000
+
     def test_single_camera_defaults_to_720p_30fps_mjpg(self) -> None:
         server = GodModeVideoServer(port=188651, device_index=0, allow_live_camera=True)
 
@@ -354,11 +364,15 @@ class TestGodModeVideoServer:
         with (
             patch.object(server, "_serve_webrtc") as serve_webrtc,
             patch.object(server, "_serve_http") as serve_http,
+            patch("asee.video_server.apply_webrtc_video_tuning") as tune_webrtc,
         ):
             serve_webrtc.side_effect = lambda: server.stop()
 
             server.start()
 
+        tune_webrtc.assert_called_once_with(
+            video_bitrate_bps=server._webrtc_video_bitrate_bps
+        )
         serve_webrtc.assert_called_once_with()
         serve_http.assert_not_called()
 

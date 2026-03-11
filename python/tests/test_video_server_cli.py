@@ -141,6 +141,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         enable_face_detection=False,
         detection_backend="opencv",
         transport="webrtc",
+        webrtc_video_bitrate_bps=2_500_000,
     )
 
 
@@ -239,6 +240,14 @@ def test_build_arg_parser_transport_default_is_webrtc() -> None:
     assert args.transport == "webrtc"
 
 
+def test_build_arg_parser_webrtc_video_bitrate_default_is_2500kbps() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.webrtc_video_bitrate_kbps == 2500
+
+
 def test_build_server_from_args_passes_detection_backend_to_server() -> None:
     """build_server_from_args must forward detection_backend to GodModeVideoServer."""
     args = SimpleNamespace(
@@ -263,6 +272,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         disable_face_detect=False,
         detection_backend="onnxruntime",
         transport="webrtc",
+        webrtc_video_bitrate_kbps=2750,
     )
 
     with (
@@ -274,6 +284,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
     assert call_kwargs.get("transport") == "webrtc"
+    assert call_kwargs.get("webrtc_video_bitrate_bps") == 2_750_000
 
 
 def test_main_builds_server_and_starts_it() -> None:

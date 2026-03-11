@@ -42,6 +42,10 @@ from .overlay import GodModeOverlay
 from .overlay_broadcaster import OverlayBroadcaster
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
+from .webrtc_codec_tuning import (
+    DEFAULT_WEBRTC_VIDEO_BITRATE_BPS,
+    apply_webrtc_video_tuning,
+)
 from .webrtc_signaling import create_webrtc_app
 
 logger = logging.getLogger(__name__)
@@ -275,6 +279,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="webrtc",
         help="配信 transport。既定は WebRTC、mjpeg は compatibility fallback",
     )
+    parser.add_argument(
+        "--webrtc-video-bitrate-kbps",
+        type=int,
+        default=DEFAULT_WEBRTC_VIDEO_BITRATE_BPS // 1000,
+        help="WebRTC video encoder の target bitrate (kbps)",
+    )
     return parser
 
 
@@ -317,6 +327,8 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
         transport=str(getattr(args, "transport", "webrtc")),
+        webrtc_video_bitrate_bps=int(getattr(args, "webrtc_video_bitrate_kbps", 2500))
+        * 1000,
     )
 
 
@@ -360,6 +372,7 @@ class GodModeVideoServer:
         capture_profile: str = "auto",
         detection_backend: str = "onnxruntime",
         transport: str = "webrtc",
+        webrtc_video_bitrate_bps: int = DEFAULT_WEBRTC_VIDEO_BITRATE_BPS,
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -394,6 +407,7 @@ class GodModeVideoServer:
         self._capture_fourcc = self.capture_settings.fourcc
         self._enable_face_detection = enable_face_detection
         self._transport = transport
+        self._webrtc_video_bitrate_bps = webrtc_video_bitrate_bps
         self._diagnostics = diagnostics_logger or NullDiagnosticsLogger()
         self._memory_monitor = MemoryMonitor(
             self._diagnostics,
@@ -579,6 +593,9 @@ class GodModeVideoServer:
 
         try:
             if self._transport == "webrtc":
+                apply_webrtc_video_tuning(
+                    video_bitrate_bps=self._webrtc_video_bitrate_bps
+                )
                 self._serve_webrtc()
             else:
                 self._serve_http()
