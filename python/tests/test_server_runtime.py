@@ -188,3 +188,29 @@ def test_wait_for_frame_update_returns_new_revision_before_timeout():
     worker.join(timeout=1.0)
 
     assert observed == [1]
+
+
+def test_frame_listener_receives_updates_for_matching_camera():
+    runtime = SeeingServerRuntime(overlay=FakeOverlay(), camera_ids=(2,))
+    calls: list[str] = []
+
+    unregister = runtime.register_frame_listener(
+        camera_id=2,
+        callback=lambda: calls.append("camera-2"),
+    )
+
+    runtime.update_frame(make_frame(width=640, height=480), camera_id=2)
+    unregister()
+    runtime.update_frame(make_frame(width=640, height=480), camera_id=2)
+
+    assert calls == ["camera-2"]
+
+
+def test_global_frame_listener_receives_single_camera_updates():
+    runtime = SeeingServerRuntime(overlay=FakeOverlay())
+    calls: list[str] = []
+
+    runtime.register_frame_listener(callback=lambda: calls.append("global"))
+    runtime.update_frame(make_frame())
+
+    assert calls == ["global"]

@@ -67,6 +67,10 @@ class SeeingServerRuntime:
             camera_id: 0 for camera_id in self.camera_ids
         }
         self._frame_condition = threading.Condition()
+        self._frame_listeners: list[Callable[[], None]] = []
+        self._frame_listeners_by_camera: dict[int, list[Callable[[], None]]] = {
+            camera_id: [] for camera_id in self.camera_ids
+        }
         self._faces: list[FaceLike] = []
         self._faces_by_camera: dict[int, list[FaceLike]] = {
             camera_id: [] for camera_id in self.camera_ids
@@ -90,6 +94,7 @@ class SeeingServerRuntime:
         self.overlay_state = OverlayTextState(caption=caption, prediction=prediction)
 
     def update_frame(self, frame: FrameArray, *, camera_id: int | None = None) -> None:
+        listeners_to_notify: list[Callable[[], None]]
         with self._frame_condition:
             self._frame_revision += 1
             if self.camera_ids:
@@ -100,11 +105,18 @@ class SeeingServerRuntime:
                 self._frame_revisions_by_camera[current_camera_id] += 1
                 if current_camera_id == self._primary_camera_id:
                     self.current_frame = frame
+                listeners_to_notify = [
+                    *self._frame_listeners,
+                    *self._frame_listeners_by_camera.get(current_camera_id, []),
+                ]
                 self._frame_condition.notify_all()
-                return
+            else:
+                self.current_frame = frame
+                listeners_to_notify = list(self._frame_listeners)
+                self._frame_condition.notify_all()
 
-            self.current_frame = frame
-            self._frame_condition.notify_all()
+        for callback in listeners_to_notify:
+            callback()
 
     def get_frame(self, camera_id: int | None = None) -> FrameArray | None:
         if camera_id is None or not self.camera_ids:
@@ -134,6 +146,29 @@ class SeeingServerRuntime:
                 timeout=max(0.0, timeout_sec),
             )
             return current_revision()
+
+    def register_frame_listener(
+        self,
+        *,
+        callback: Callable[[], None],
+        camera_id: int | None = None,
+    ) -> Callable[[], None]:
+        if camera_id is None or not self.camera_ids:
+            listeners = self._frame_listeners
+        else:
+            listeners = self._frame_listeners_by_camera.setdefault(int(camera_id), [])
+
+        with self._frame_condition:
+            listeners.append(callback)
+
+        def unregister() -> None:
+            with self._frame_condition:
+                try:
+                    listeners.remove(callback)
+                except ValueError:
+                    pass
+
+        return unregister
 
     def record_faces(
         self,

@@ -78,18 +78,39 @@ class RuntimeVideoTrack(VideoStreamTrack):
         self._pts = 0
         self._pts_step = int(90000 / self._fps)
         self._last_frame = _black_frame()
+        self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        self._frame_event = asyncio.Event()
         self._last_revision = self._runtime.get_frame_revision(self._camera_id)
         self._last_overlay_signature: tuple[object, ...] | None = None
         self._last_yuv_revision: int | None = None
         self._last_yuv_frame: av.VideoFrame | None = None
 
-    async def recv(self) -> av.VideoFrame:
-        self._last_revision = await asyncio.to_thread(
-            self._runtime.wait_for_frame_update,
+        def notify_new_frame() -> None:
+            self._loop.call_soon_threadsafe(self._frame_event.set)
+
+        self._remove_frame_listener = self._runtime.register_frame_listener(
             camera_id=self._camera_id,
-            after_revision=self._last_revision,
-            timeout_sec=1.0 / self._fps,
+            callback=notify_new_frame,
         )
+        if self._runtime.get_frame(self._camera_id) is not None:
+            self._frame_event.set()
+
+    def stop(self) -> None:
+        self._remove_frame_listener()
+        super().stop()
+
+    async def recv(self) -> av.VideoFrame:
+        current_revision = self._runtime.get_frame_revision(self._camera_id)
+        if current_revision <= self._last_revision:
+            self._frame_event.clear()
+            current_revision = self._runtime.get_frame_revision(self._camera_id)
+            if current_revision <= self._last_revision:
+                try:
+                    await asyncio.wait_for(self._frame_event.wait(), timeout=1.0 / self._fps)
+                except TimeoutError:
+                    pass
+                current_revision = self._runtime.get_frame_revision(self._camera_id)
+        self._last_revision = current_revision
 
         frame = self._runtime.get_frame(self._camera_id)
         if frame is None:
