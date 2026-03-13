@@ -241,6 +241,47 @@ def test_start_bakes_left_bottom_layout_into_viewer_supervisor(tmp_path: Path) -
     assert f'"{PROJECT_ROOT}/tmp_main.sh" layout --port "19145" --left-bottom' in content
 
 
+def test_left_bottom_layout_clears_keep_above(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    captured_script = tmp_path / "captured-layout.js"
+
+    _write_executable(
+        bin_dir / "wmctrl",
+        """#!/usr/bin/env bash
+printf '0x001  0 test ASEE Viewer\\n'
+""",
+    )
+    _write_executable(
+        bin_dir / "qdbus",
+        f"""#!/usr/bin/env bash
+if [[ "${{3:-}}" == "org.kde.kwin.Scripting.loadScript" ]]; then
+  cp "${{4}}" "{captured_script}"
+fi
+exit 0
+""",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DISPLAY"] = ":0"
+
+    result = subprocess.run(
+        [str(SCRIPT), "layout", "--port", "19146", "--left-bottom"],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    content = captured_script.read_text(encoding="utf-8")
+    assert "c.keepAbove = false;" in content
+    assert "c.keepBelow = false;" in content
+
+
 def test_start_accepts_legacy_noop_flags(tmp_path: Path) -> None:
     env, invocation_log = _build_stubbed_env(tmp_path, port=19142)
 

@@ -358,7 +358,8 @@ for (var i = 0; i < clients.length; i++) {
     if (c.caption.indexOf("${WINDOW_TITLE}") !== -1) {
         c.fullScreen = false;
         c.noBorder = true;
-        c.keepAbove = true;
+        c.keepBelow = false;
+        c.keepAbove = false;
         c.onAllDesktops = true;
         var g = c.frameGeometry;
         g.x = ${LAYOUT_X};
