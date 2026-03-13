@@ -177,9 +177,12 @@ def test_classify_label_saves_subject_crop(blank_frame: np.ndarray):
 
     assert label == "SUBJECT"
     writer.save.assert_called_once()
-    crop_arg, score_arg = writer.save.call_args.args
+    crop_arg, score_arg = writer.save.call_args.args[:2]
     assert crop_arg.shape == (40, 30, 3)
     assert score_arg == score
+    metadata = writer.save.call_args.kwargs["metadata"]
+    assert metadata["label"] == "SUBJECT"
+    assert metadata["faceBox"] == {"x": 10, "y": 20, "w": 30, "h": 40}
 
 
 def test_classify_label_saves_owner_crop(blank_frame: np.ndarray):
@@ -202,9 +205,12 @@ def test_classify_label_saves_owner_crop(blank_frame: np.ndarray):
 
     assert label == "OWNER"
     writer.save.assert_called_once()
-    crop_arg, score_arg = writer.save.call_args.args
+    crop_arg, score_arg = writer.save.call_args.args[:2]
     assert crop_arg.shape == (45, 35, 3)
     assert score_arg == score
+    metadata = writer.save.call_args.kwargs["metadata"]
+    assert metadata["label"] == "OWNER"
+    assert metadata["faceBox"] == {"x": 15, "y": 25, "w": 35, "h": 45}
 
 
 def test_detection_backend_opencv_default():

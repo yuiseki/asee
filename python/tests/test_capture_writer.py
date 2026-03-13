@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from asee.capture_writer import FaceCaptureWriter
@@ -61,6 +62,34 @@ def test_score_is_in_filename(tmp_path):
 
     jpg = list(tmp_path.rglob('*.jpg'))[0]
     assert 'score0.63' in jpg.name
+
+
+def test_save_writes_sidecar_metadata_json(tmp_path):
+    writer = FaceCaptureWriter(
+        tmp_path,
+        min_interval_sec=0.0,
+        write_image=write_dummy_image,
+    )
+
+    saved = writer.save(
+        object(),
+        score=0.63,
+        metadata={
+            "label": "SUBJECT",
+            "cameraId": 2,
+            "frameCounts": {"ownerCount": 0, "subjectCount": 1, "peopleCount": 1},
+        },
+    )
+
+    assert saved is True
+    jpg = list(tmp_path.rglob('*.jpg'))[0]
+    sidecar = jpg.with_suffix(".json")
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert payload["score"] == 0.63
+    assert payload["label"] == "SUBJECT"
+    assert payload["cameraId"] == 2
+    assert payload["frameCounts"] == {"ownerCount": 0, "subjectCount": 1, "peopleCount": 1}
+    assert "capturedAt" in payload
 
 
 def test_max_files_per_day_limit(tmp_path):

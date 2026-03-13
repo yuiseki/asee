@@ -83,6 +83,7 @@ def test_triage_subject_session_features_copies_files_and_writes_manifest(tmp_pa
     guest_path.write_bytes(b"guest")
     owner_path.write_bytes(b"owner")
     unsure_path.write_bytes(b"unsure")
+    guest_path.with_suffix(".json").write_text('{"label":"SUBJECT"}', encoding="utf-8")
 
     output_root = tmp_path / "triaged"
     result = triage_subject_session_features(
@@ -125,6 +126,18 @@ def test_triage_subject_session_features_copies_files_and_writes_manifest(tmp_pa
         / "27"
         / "guest.jpg"
     ).read_bytes() == b"guest"
+    assert json.loads(
+        (
+            output_root
+            / "likely_guest_negative"
+            / "2026"
+            / "03"
+            / "13"
+            / "19"
+            / "27"
+            / "guest.json"
+        ).read_text(encoding="utf-8")
+    ) == {"label": "SUBJECT"}
     assert (
         output_root
         / "likely_owner_false_negative"

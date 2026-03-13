@@ -44,6 +44,7 @@ cd ..
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
 - during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
+- each captured face crop now writes a sidecar `.json` with timestamp, score, label, face box, and per-frame counts for later relabeling and session triage.
 - the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
 - `tmp_main.sh` now builds the Electron app before launch and supervises the viewer process separately, so a viewer-only crash can be retried without restarting the backend.

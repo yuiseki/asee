@@ -1038,6 +1038,9 @@ class GodModeVideoServer:
 
                     # Group results by camera
                     faces_per_cam: dict[int, list[FaceBox]] = {cid: [] for cid in camera_ids}
+                    captured_faces_per_cam: dict[int, list[tuple[FrameArray, FaceBox]]] = {
+                        cid: [] for cid in camera_ids
+                    }
 
                     for req, embedding in zip(recognition_requests, embeddings, strict=False):
                         source_frame, face_box, device, _ = req
@@ -1049,17 +1052,29 @@ class GodModeVideoServer:
                                     face_box,
                                 )
                             )
-                        self.overlay._save_face_capture(
-                            source_frame,
-                            face_box,
-                            label=face_box.label,
-                            score=face_box.confidence,
-                        )
-
+                        captured_faces_per_cam[device].append((source_frame, face_box))
                         faces_per_cam[device].append(face_box)
 
                     # Update trackers and records
                     for device, faces in faces_per_cam.items():
+                        owner_count = sum(1 for face in faces if face.label == "OWNER")
+                        subject_count = sum(1 for face in faces if face.label == "SUBJECT")
+                        people_count = len(faces)
+                        for source_frame, face_box in captured_faces_per_cam[device]:
+                            self.overlay._save_face_capture(
+                                source_frame,
+                                face_box,
+                                label=face_box.label,
+                                score=face_box.confidence,
+                                metadata={
+                                    "cameraId": int(device),
+                                    "frameCounts": {
+                                        "ownerCount": owner_count,
+                                        "subjectCount": subject_count,
+                                        "peopleCount": people_count,
+                                    },
+                                },
+                            )
                         tracker = self._trackers_per_cam.get(device)
                         if tracker is not None:
                             faces = tracker.update(faces)

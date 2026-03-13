@@ -258,7 +258,18 @@ class TestGodModeVideoServer:
         assert save_frame.shape == frame.shape
         assert save_face_box.label == "SUBJECT"
         assert save_face_box.confidence == 0.61
-        assert save_capture.call_args.kwargs == {"label": "SUBJECT", "score": 0.61}
+        assert save_capture.call_args.kwargs == {
+            "label": "SUBJECT",
+            "score": 0.61,
+            "metadata": {
+                "cameraId": 0,
+                "frameCounts": {
+                    "ownerCount": 0,
+                    "subjectCount": 1,
+                    "peopleCount": 1,
+                },
+            },
+        }
 
     def test_biometric_status_defaults_when_no_owner_seen(self) -> None:
         server = GodModeVideoServer(port=18868, device_index=None)

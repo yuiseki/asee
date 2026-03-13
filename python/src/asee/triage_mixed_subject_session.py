@@ -175,6 +175,9 @@ def triage_subject_session_features(
             destination = output_root / bucket / relative_path
             destination.parent.mkdir(parents=True, exist_ok=True)
             writer(feature.source_path, destination)
+            sidecar_path = feature.source_path.with_suffix(".json")
+            if sidecar_path.exists():
+                writer(sidecar_path, destination.with_suffix(".json"))
             manifest.write(
                 json.dumps(
                     {

@@ -11,6 +11,7 @@ from asee.retrain_owner_embedding import (
     augment_owner_embeddings,
     evaluate_image_paths,
     greedy_select_false_negative_candidates,
+    iter_image_paths,
     normalize_owner_embeddings,
     resolve_latest_guest_session_dir,
     snapshot_owner_embedding,
@@ -61,6 +62,15 @@ def test_resolve_latest_guest_session_dir_returns_latest_directory(tmp_path: Pat
     second.mkdir(parents=True)
 
     assert resolve_latest_guest_session_dir(tmp_path) == second
+
+
+def test_iter_image_paths_filters_out_sidecar_json_files(tmp_path: Path) -> None:
+    image = tmp_path / "face.jpg"
+    sidecar = tmp_path / "face.json"
+    image.write_bytes(b"x")
+    sidecar.write_text("{}", encoding="utf-8")
+
+    assert iter_image_paths(tmp_path) == [image]
 
 
 def test_evaluate_image_paths_counts_owner_subject_and_skipped(tmp_path: Path) -> None:

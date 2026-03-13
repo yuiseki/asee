@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from datetime import datetime
@@ -98,7 +99,7 @@ class FaceCaptureWriter:
             return False, f"ディスク使用量上限 {current_mb}/{max_mb} MB に達しました"
         return True, ""
 
-    def save(self, image: Any, score: float) -> bool:
+    def save(self, image: Any, score: float, metadata: dict[str, Any] | None = None) -> bool:
         if image is None:
             return False
         
@@ -129,6 +130,12 @@ class FaceCaptureWriter:
 
         if not self._write_image(filename, image):
             return False
+        self._write_metadata_sidecar(
+            filename.with_suffix(".json"),
+            score=score,
+            captured_at=datetime.now(),
+            metadata=metadata,
+        )
 
         self._last_saved_at = now
         self._cached_total_files += 1
@@ -137,3 +144,41 @@ class FaceCaptureWriter:
         except OSError:
             pass
         return True
+
+    def _write_metadata_sidecar(
+        self,
+        sidecar_path: Path,
+        *,
+        score: float,
+        captured_at: datetime,
+        metadata: dict[str, Any] | None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "capturedAt": captured_at.isoformat(timespec="seconds"),
+            "score": float(score),
+        }
+        if metadata:
+            payload.update(_normalize_metadata_mapping(metadata))
+        sidecar_path.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+
+
+def _normalize_metadata_mapping(metadata: dict[str, Any]) -> dict[str, Any]:
+    return {str(key): _normalize_metadata_value(value) for key, value in metadata.items()}
+
+
+def _normalize_metadata_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return _normalize_metadata_mapping(value)
+    if isinstance(value, (list, tuple)):
+        return [_normalize_metadata_value(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "item") and callable(value.item):
+        try:
+            return value.item()
+        except Exception:
+            return str(value)
+    return value

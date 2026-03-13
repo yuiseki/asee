@@ -425,6 +425,7 @@ class GodModeOverlay:
         *,
         label: str,
         score: float,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         writer = None
         if label == "OWNER":
@@ -444,7 +445,18 @@ class GodModeOverlay:
         crop = frame[y1:y2, x1:x2]
         if crop.size <= 0:
             return
-        writer.save(crop, score)
+        payload = {
+            "label": label,
+            "faceBox": {
+                "x": int(face_box.x),
+                "y": int(face_box.y),
+                "w": int(face_box.w),
+                "h": int(face_box.h),
+            },
+        }
+        if metadata:
+            payload.update(metadata)
+        writer.save(crop, score, metadata=payload)
 
     def _draw_grid(self, image: FrameArray, width: int, height: int) -> None:
         step = 80

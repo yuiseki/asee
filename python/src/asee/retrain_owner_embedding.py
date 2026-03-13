@@ -174,7 +174,10 @@ def iter_image_paths(root: Path) -> list[Path]:
     """Return stable, recursive image paths under a dataset root."""
     if not root.exists():
         return []
-    return sorted(path for path in root.rglob("*") if path.is_file())
+    image_suffixes = {".jpg", ".jpeg", ".png"}
+    return sorted(
+        path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in image_suffixes
+    )
 
 
 def read_face_crop(path: Path) -> FrameArray | None:
