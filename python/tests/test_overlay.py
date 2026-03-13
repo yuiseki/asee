@@ -190,7 +190,11 @@ def test_classify_label_saves_owner_crop(blank_frame: np.ndarray):
     overlay._owner_embeddings = np.zeros((1, 128), dtype=np.float32)
     overlay._recognizer = MagicMock()
     overlay._recognizer.match.return_value = 0.9
-    with patch.object(overlay, "extract_embedding", return_value=np.zeros((1, 128), dtype=np.float32)):
+    with patch.object(
+        overlay,
+        "extract_embedding",
+        return_value=np.zeros((1, 128), dtype=np.float32),
+    ):
         label, score = overlay._classify_label(
             blank_frame.copy(),
             FaceBox(x=15, y=25, w=35, h=45),
