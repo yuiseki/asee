@@ -45,6 +45,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.relabel_owner_false_negatives`
 - offline owner-embedding retrain/validation helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.retrain_owner_embedding --negative-validation-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
+  - default mode is validation-only (`--apply` is required to overwrite the live owner embedding)
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.

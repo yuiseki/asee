@@ -16,7 +16,12 @@ import numpy.typing as npt
 
 from .enroll_owner import DEFAULT_OWNER_EMBED_PATH
 from .overlay import GodModeOverlay
-from .owner_policy import FaceRecognizerLike, classify_owner_embedding
+from .owner_policy import (
+    OWNER_COSINE_THRESHOLD,
+    OWNER_TOPK,
+    FaceRecognizerLike,
+    classify_owner_embedding,
+)
 from .tracking import FaceBox
 
 DEFAULT_FALSE_NEGATIVE_DIR = Path(
@@ -54,6 +59,14 @@ class RetrainValidationReport:
     before_negative: DatasetEvaluation
     after_negative: DatasetEvaluation
     added_embeddings: int
+    selected_false_negative_paths: tuple[Path, ...] = ()
+    candidate_embedding_path: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GreedySelectionResult:
+    selected_indices: tuple[int, ...]
+    selected_paths: tuple[Path, ...]
 
 
 class OverlayLike(Protocol):
@@ -89,6 +102,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--snapshot-dir",
         type=Path,
         default=DEFAULT_SNAPSHOT_DIR,
+    )
+    parser.add_argument(
+        "--selection-mode",
+        choices=("negative-aware-greedy", "full-add"),
+        default="negative-aware-greedy",
+    )
+    parser.add_argument(
+        "--negative-penalty",
+        type=float,
+        default=3.0,
+    )
+    parser.add_argument(
+        "--max-selected",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the candidate owner embedding back into the live model path.",
     )
     return parser
 
@@ -225,12 +258,140 @@ def collect_dataset_embeddings(
     return cast(EmbeddingArray, np.stack(embeddings, axis=0))
 
 
+def build_cosine_similarity_matrix(
+    references: EmbeddingArray,
+    samples: EmbeddingArray,
+) -> npt.NDArray[np.float32]:
+    """Compute cosine similarity matrix between reference and sample embeddings."""
+    flat_references = normalize_owner_embeddings(references).reshape(len(references), -1)
+    flat_samples = normalize_owner_embeddings(samples).reshape(len(samples), -1)
+    ref_norm = np.linalg.norm(flat_references, axis=1, keepdims=True)
+    sample_norm = np.linalg.norm(flat_samples, axis=1, keepdims=True)
+    safe_ref = np.where(ref_norm == 0, 1.0, ref_norm)
+    safe_sample = np.where(sample_norm == 0, 1.0, sample_norm)
+    normalized_refs = flat_references / safe_ref
+    normalized_samples = flat_samples / safe_sample
+    return cast(
+        npt.NDArray[np.float32],
+        (normalized_refs @ normalized_samples.T).astype(np.float32, copy=False),
+    )
+
+
+def build_topk_values(
+    similarities: npt.NDArray[np.float32],
+    *,
+    topk: int,
+) -> npt.NDArray[np.float32]:
+    """Build per-sample ascending top-k similarity buffers."""
+    if similarities.size == 0:
+        return np.zeros((0, 0), dtype=np.float32)
+    k = min(topk, similarities.shape[0])
+    partitioned = np.partition(similarities, similarities.shape[0] - k, axis=0)[-k:]
+    return np.sort(partitioned, axis=0).T.copy()
+
+
+def greedy_select_false_negative_candidates(
+    *,
+    candidate_paths: Sequence[Path],
+    positive_candidate_scores: npt.NDArray[np.float32],
+    negative_candidate_scores: npt.NDArray[np.float32],
+    positive_topk_values: npt.NDArray[np.float32],
+    negative_topk_values: npt.NDArray[np.float32],
+    threshold: float,
+    negative_penalty: float,
+    max_selected: int | None = None,
+) -> GreedySelectionResult:
+    """Greedily add candidates that improve positives more than they harm negatives."""
+    if len(candidate_paths) != positive_candidate_scores.shape[0]:
+        raise ValueError("candidate_paths and positive_candidate_scores must align")
+    if len(candidate_paths) != negative_candidate_scores.shape[0]:
+        raise ValueError("candidate_paths and negative_candidate_scores must align")
+
+    selected_indices: list[int] = []
+    remaining = set(range(len(candidate_paths)))
+    current_positive = positive_topk_values.copy()
+    current_negative = negative_topk_values.copy()
+
+    while remaining:
+        if max_selected is not None and len(selected_indices) >= max_selected:
+            break
+        best_index: int | None = None
+        best_utility = 0.0
+
+        current_positive_owner = int(np.count_nonzero(current_positive.mean(axis=1) >= threshold))
+        current_negative_owner = int(np.count_nonzero(current_negative.mean(axis=1) >= threshold))
+
+        for index in sorted(remaining):
+            trial_positive = apply_candidate_scores(
+                topk_values=current_positive,
+                candidate_scores=positive_candidate_scores[index],
+            )
+            trial_negative = apply_candidate_scores(
+                topk_values=current_negative,
+                candidate_scores=negative_candidate_scores[index],
+            )
+            positive_gain = (
+                int(np.count_nonzero(trial_positive.mean(axis=1) >= threshold))
+                - current_positive_owner
+            )
+            negative_gain = (
+                int(np.count_nonzero(trial_negative.mean(axis=1) >= threshold))
+                - current_negative_owner
+            )
+            utility = float(positive_gain) - negative_penalty * float(negative_gain)
+            if utility > best_utility:
+                best_utility = utility
+                best_index = index
+
+        if best_index is None:
+            break
+
+        selected_indices.append(best_index)
+        remaining.remove(best_index)
+        current_positive = apply_candidate_scores(
+            topk_values=current_positive,
+            candidate_scores=positive_candidate_scores[best_index],
+        )
+        current_negative = apply_candidate_scores(
+            topk_values=current_negative,
+            candidate_scores=negative_candidate_scores[best_index],
+        )
+
+    selected_paths = tuple(candidate_paths[index] for index in selected_indices)
+    return GreedySelectionResult(
+        selected_indices=tuple(selected_indices),
+        selected_paths=selected_paths,
+    )
+
+
+def apply_candidate_scores(
+    *,
+    topk_values: npt.NDArray[np.float32],
+    candidate_scores: npt.NDArray[np.float32],
+) -> npt.NDArray[np.float32]:
+    """Insert one candidate similarity vector into per-sample top-k buffers."""
+    if topk_values.size == 0:
+        return topk_values.copy()
+    updated = topk_values.copy()
+    thresholds = updated[:, 0]
+    improve_mask = candidate_scores > thresholds
+    if not np.any(improve_mask):
+        return updated
+    updated[improve_mask, 0] = candidate_scores[improve_mask]
+    updated[improve_mask] = np.sort(updated[improve_mask], axis=1)
+    return updated
+
+
 def run_retraining(
     *,
     owner_embedding_path: Path,
     false_negative_dir: Path,
     negative_validation_dir: Path,
     snapshot_dir: Path,
+    selection_mode: str = "negative-aware-greedy",
+    negative_penalty: float = 3.0,
+    max_selected: int | None = None,
+    apply: bool = False,
     overlay: OverlayLike | None = None,
     read_image: Callable[[Path], FrameArray | None] = read_face_crop,
 ) -> RetrainValidationReport:
@@ -287,12 +448,56 @@ def run_retraining(
         classify_embedding=classify_with(current_embeddings),
     )
 
-    additions = collect_dataset_embeddings(
+    positive_additions = collect_dataset_embeddings(
         image_paths=positive_paths,
         read_image=read_image,
         extract_embedding=extract_embedding,
     )
-    candidate_embeddings = augment_owner_embeddings(current=current_embeddings, additions=additions)
+    selected_positive_paths = tuple(positive_paths)
+    selected_additions = positive_additions
+    if selection_mode == "negative-aware-greedy":
+        positive_similarity = build_cosine_similarity_matrix(positive_additions, positive_additions)
+        negative_embeddings = collect_dataset_embeddings(
+            image_paths=negative_paths,
+            read_image=read_image,
+            extract_embedding=extract_embedding,
+        )
+        negative_similarity = build_cosine_similarity_matrix(
+            positive_additions,
+            negative_embeddings,
+        )
+        current_positive_similarity = build_cosine_similarity_matrix(
+            current_embeddings,
+            positive_additions,
+        )
+        current_negative_similarity = build_cosine_similarity_matrix(
+            current_embeddings,
+            negative_embeddings,
+        )
+        selection = greedy_select_false_negative_candidates(
+            candidate_paths=positive_paths,
+            positive_candidate_scores=positive_similarity,
+            negative_candidate_scores=negative_similarity,
+            positive_topk_values=build_topk_values(current_positive_similarity, topk=OWNER_TOPK),
+            negative_topk_values=build_topk_values(current_negative_similarity, topk=OWNER_TOPK),
+            threshold=OWNER_COSINE_THRESHOLD,
+            negative_penalty=negative_penalty,
+            max_selected=max_selected,
+        )
+        selected_positive_paths = selection.selected_paths
+        if selection.selected_indices:
+            selected_additions = positive_additions[list(selection.selected_indices)]
+        else:
+            selected_additions = cast(
+                EmbeddingArray,
+                np.zeros((0, 1, current_embeddings.shape[-1]), dtype=np.float32),
+            )
+
+    candidate_embeddings = (
+        augment_owner_embeddings(current=current_embeddings, additions=selected_additions)
+        if len(selected_additions) > 0
+        else current_embeddings.copy()
+    )
 
     after_positive = evaluate_image_paths(
         image_paths=positive_paths,
@@ -307,7 +512,11 @@ def run_retraining(
         classify_embedding=classify_with(candidate_embeddings),
     )
 
-    np.save(owner_embedding_path, candidate_embeddings)
+    candidate_snapshot_path = snapshot_dir / f"owner_embedding_candidate_{timestamp}.npy"
+    candidate_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(candidate_snapshot_path, candidate_embeddings)
+    if apply:
+        np.save(owner_embedding_path, candidate_embeddings)
     return RetrainValidationReport(
         owner_embedding_path=owner_embedding_path,
         snapshot_path=snapshot_path,
@@ -318,6 +527,8 @@ def run_retraining(
         before_negative=before_negative,
         after_negative=after_negative,
         added_embeddings=int(candidate_embeddings.shape[0] - current_embeddings.shape[0]),
+        selected_false_negative_paths=selected_positive_paths,
+        candidate_embedding_path=candidate_snapshot_path,
     )
 
 
@@ -343,12 +554,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         false_negative_dir=Path(args.false_negative_dir),
         negative_validation_dir=negative_validation_dir,
         snapshot_dir=Path(args.snapshot_dir),
+        selection_mode=str(args.selection_mode),
+        negative_penalty=float(args.negative_penalty),
+        max_selected=None if args.max_selected is None else int(args.max_selected),
+        apply=bool(args.apply),
     )
     print(f"snapshot={report.snapshot_path}")
     print(f"owner_embedding={report.owner_embedding_path}")
+    print(f"candidate_embedding={report.candidate_embedding_path}")
     print(f"false_negative_dir={report.false_negative_dir}")
     print(f"negative_validation_dir={report.negative_validation_dir}")
     print(f"added_embeddings={report.added_embeddings}")
+    print(f"selected_false_negatives={len(report.selected_false_negative_paths)}")
     print(format_evaluation("before_positive", report.before_positive))
     print(format_evaluation("after_positive", report.after_positive))
     print(format_evaluation("before_negative", report.before_negative))

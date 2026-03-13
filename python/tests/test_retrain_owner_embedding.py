@@ -7,8 +7,10 @@ import pytest
 
 from asee.retrain_owner_embedding import (
     DatasetEvaluation,
+    GreedySelectionResult,
     augment_owner_embeddings,
     evaluate_image_paths,
+    greedy_select_false_negative_candidates,
     normalize_owner_embeddings,
     resolve_latest_guest_session_dir,
     snapshot_owner_embedding,
@@ -99,4 +101,64 @@ def test_evaluate_image_paths_counts_owner_subject_and_skipped(tmp_path: Path) -
         owner_predictions=1,
         subject_predictions=1,
         mean_score=pytest.approx(0.6),
+    )
+
+
+def test_greedy_select_false_negative_candidates_prefers_positive_gain_without_negative_harm(
+) -> None:
+    positive_candidate_scores = np.array(
+        [
+            [0.9, 0.9],
+            [0.7, 0.4],
+        ],
+        dtype=np.float32,
+    )
+    negative_candidate_scores = np.array(
+        [
+            [0.2, 0.2],
+            [0.9, 0.9],
+        ],
+        dtype=np.float32,
+    )
+    positive_topk = np.array([[0.4], [0.4]], dtype=np.float32)
+    negative_topk = np.array([[0.4], [0.4]], dtype=np.float32)
+    candidate_paths = [Path("good.jpg"), Path("bad.jpg")]
+
+    result = greedy_select_false_negative_candidates(
+        candidate_paths=candidate_paths,
+        positive_candidate_scores=positive_candidate_scores,
+        negative_candidate_scores=negative_candidate_scores,
+        positive_topk_values=positive_topk,
+        negative_topk_values=negative_topk,
+        threshold=0.5,
+        negative_penalty=3.0,
+    )
+
+    assert result == GreedySelectionResult(
+        selected_indices=(0,),
+        selected_paths=(Path("good.jpg"),),
+    )
+
+
+def test_greedy_select_false_negative_candidates_stops_when_no_candidate_has_positive_utility(
+) -> None:
+    positive_candidate_scores = np.array([[0.49, 0.49]], dtype=np.float32)
+    negative_candidate_scores = np.array([[0.9, 0.9]], dtype=np.float32)
+    positive_topk = np.array([[0.48], [0.48]], dtype=np.float32)
+    negative_topk = np.array([[0.48], [0.48]], dtype=np.float32)
+    candidate_paths = [Path("harmful.jpg")]
+
+    result = greedy_select_false_negative_candidates(
+        candidate_paths=candidate_paths,
+        positive_candidate_scores=positive_candidate_scores,
+        negative_candidate_scores=negative_candidate_scores,
+        positive_topk_values=positive_topk,
+        negative_topk_values=negative_topk,
+        threshold=0.5,
+        negative_penalty=3.0,
+    )
+
+    assert result == GreedySelectionResult(
+        selected_indices=(),
+        selected_paths=(),
     )
