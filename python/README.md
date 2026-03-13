@@ -49,6 +49,9 @@ cd ..
 - tilted owner hard-positive selector:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.tilted_owner_hard_positive_selector --source /home/yuiseki/Workspaces/private/datasets/faces/others_owner_only_triaged/2026-03-14/likely_owner_false_negative`
   - re-detects eye-line roll on conservative owner-only false negatives, dedupes near-identical embeddings, and writes append-only tilted candidates into `private/datasets/faces/tilted_owner_hard_positive_candidates/<source-parent>/` plus `manifest.jsonl`
+- owner tilt-miss session collector:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.owner_tilt_miss_session --source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/14`
+  - reuses the conservative owner-only SUBJECT triage, re-detects roll, and writes unresolved tilt misses into `private/datasets/faces/owner_tilt_miss_session/<source-date>/` plus `manifest.jsonl`
 - during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
 - each captured face crop now writes a sidecar `.json` with timestamp, score, label, face box, and per-frame counts for later relabeling and session triage.
 - the official Electron window caption is `ASEE Viewer`.

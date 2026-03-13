@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from math import atan2, degrees
 from pathlib import Path
 from shutil import copy2
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import cv2
 import numpy as np
@@ -32,7 +32,9 @@ type FrameArray = np.ndarray
 
 
 class DetectorLike(Protocol):
-    def detect(self, frame: FrameArray) -> tuple[object | None, Sequence[Sequence[float]] | None]: ...
+    def detect(
+        self, frame: FrameArray
+    ) -> tuple[object | None, Sequence[Sequence[float]] | None]: ...
 
 
 @dataclass(frozen=True, slots=True)
