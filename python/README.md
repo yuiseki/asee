@@ -37,6 +37,8 @@ cd ..
 - it now forwards both `--face-capture-dir` and `--subject-capture-dir`, with the default persistent SUBJECT dataset under `/home/yuiseki/Workspaces/private/datasets/faces/others`.
 - before guests arrive, move the current single-owner false negatives out of `others`:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.relabel_owner_false_negatives`
+- offline retrain/validation helper for owner embeddings:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.retrain_owner_embedding --negative-validation-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
 - during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
 - the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.

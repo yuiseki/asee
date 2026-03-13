@@ -18,7 +18,7 @@ from .dnn_policy import (
     should_use_opencl_dnn,
 )
 from .model_assets import resolve_model_asset_path
-from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK, keep_largest_owner
+from .owner_policy import classify_owner_embedding, keep_largest_owner
 from .tracking import FaceBox, FaceTracker
 
 logger = logging.getLogger(__name__)
@@ -411,32 +411,12 @@ class GodModeOverlay:
     def _classify_label_with_embedding(
         self, embedding: EmbeddingArray, face_box: FaceBox
     ) -> tuple[str, float]:
-        if self._recognizer is None or self._owner_embeddings is None:
-            return "SUBJECT", face_box.confidence
-
-        try:
-            scores = sorted(
-                [
-                    self._recognizer.match(
-                        reference.reshape(1, -1),
-                        embedding,
-                        cv2.FaceRecognizerSF_FR_COSINE,
-                    )
-                    for reference in self._owner_embeddings
-                ],
-                reverse=True,
-            )
-            score = float(np.mean(scores[:OWNER_TOPK]))
-            if score >= OWNER_COSINE_THRESHOLD:
-                # Note: face_capture_writer needs the aligned frame, 
-                # which is not available here without re-aligning.
-                # For now we focus on recognition speed.
-                return "OWNER", score
-        except Exception as error:
-            logger.debug("Label classification failed: %s", error)
-            return "SUBJECT", face_box.confidence
-
-        return "SUBJECT", face_box.confidence
+        return classify_owner_embedding(
+            recognizer=self._recognizer,
+            owner_embeddings=self._owner_embeddings,
+            embedding=embedding,
+            face_confidence=face_box.confidence,
+        )
 
     def _save_face_capture(
         self,

@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from asee.retrain_owner_embedding import (
+    DatasetEvaluation,
+    augment_owner_embeddings,
+    evaluate_image_paths,
+    normalize_owner_embeddings,
+    resolve_latest_guest_session_dir,
+    snapshot_owner_embedding,
+)
+
+
+def test_normalize_owner_embeddings_accepts_supported_shapes() -> None:
+    one_dim = np.zeros(128, dtype=np.float32)
+    two_dim = np.zeros((2, 128), dtype=np.float32)
+    three_dim = np.zeros((3, 1, 128), dtype=np.float32)
+
+    assert normalize_owner_embeddings(one_dim).shape == (1, 1, 128)
+    assert normalize_owner_embeddings(two_dim).shape == (2, 1, 128)
+    assert normalize_owner_embeddings(three_dim).shape == (3, 1, 128)
+
+
+def test_augment_owner_embeddings_concatenates_normalized_arrays() -> None:
+    current = np.zeros((2, 1, 128), dtype=np.float32)
+    additions = np.ones((3, 128), dtype=np.float32)
+
+    combined = augment_owner_embeddings(current=current, additions=additions)
+
+    assert combined.shape == (5, 1, 128)
+    assert np.all(combined[:2] == 0)
+    assert np.all(combined[2:] == 1)
+
+
+def test_snapshot_owner_embedding_copies_file_into_snapshot_dir(tmp_path: Path) -> None:
+    source = tmp_path / "owner_embedding.npy"
+    snapshot_dir = tmp_path / "snapshots"
+    expected = np.zeros((2, 1, 128), dtype=np.float32)
+    np.save(source, expected)
+
+    snapshot = snapshot_owner_embedding(
+        owner_embedding_path=source,
+        snapshot_dir=snapshot_dir,
+        timestamp="2026-03-13_23-00-00",
+    )
+
+    assert snapshot == snapshot_dir / "owner_embedding_2026-03-13_23-00-00.npy"
+    assert np.array_equal(np.load(snapshot), expected)
+
+
+def test_resolve_latest_guest_session_dir_returns_latest_directory(tmp_path: Path) -> None:
+    first = tmp_path / "2026-03-13_20-00-00"
+    second = tmp_path / "2026-03-13_22-41-56"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    assert resolve_latest_guest_session_dir(tmp_path) == second
+
+
+def test_evaluate_image_paths_counts_owner_subject_and_skipped(tmp_path: Path) -> None:
+    image_paths = [
+        tmp_path / "owner-hit.jpg",
+        tmp_path / "subject-hit.jpg",
+        tmp_path / "skip.jpg",
+    ]
+    for path in image_paths:
+        path.write_bytes(b"x")
+
+    def read_image(path: Path) -> np.ndarray | None:
+        if path.name == "skip.jpg":
+            return None
+        return np.ones((16, 16, 3), dtype=np.uint8)
+
+    def extract_embedding(frame: np.ndarray) -> np.ndarray | None:
+        del frame
+        return np.ones((1, 128), dtype=np.float32)
+
+    def classify_embedding(path: Path, embedding: np.ndarray) -> tuple[str, float]:
+        del embedding
+        if path.name == "owner-hit.jpg":
+            return "OWNER", 0.9
+        return "SUBJECT", 0.3
+
+    evaluation = evaluate_image_paths(
+        image_paths=image_paths,
+        read_image=read_image,
+        extract_embedding=extract_embedding,
+        classify_embedding=classify_embedding,
+    )
+
+    assert evaluation == DatasetEvaluation(
+        total_files=3,
+        usable_embeddings=2,
+        skipped_files=1,
+        owner_predictions=1,
+        subject_predictions=1,
+        mean_score=pytest.approx(0.6),
+    )
