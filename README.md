@@ -39,6 +39,8 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 
 - `tmp_main.sh` is now the canonical temporary operator launcher for `repos/asee`.
 - It starts `python -m asee.video_server` and the official `electron/` viewer together.
+- It now passes both OWNER raw face capture and SUBJECT capture directories through to the backend.
+- default persistent SUBJECT capture path: `/home/yuiseki/Workspaces/private/datasets/faces/others`
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
 - the viewer supervisor now reapplies the default left-bottom KWin layout after each viewer launch, so a respawned Electron window does not drift back to the desktop center.
