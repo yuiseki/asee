@@ -80,6 +80,7 @@ Accepted
   - local copies in `python/src/asee/models/` are treated as private operator state and excluded from Git history
 - the eleventh extracted slice moves the temporary operator launcher into `repos/asee/tmp_main.sh`
   - `tmp_main.sh` becomes the canonical GOD MODE-style start/stop/restart/status/layout entrypoint during migration
+  - it now also forwards the persistent SUBJECT capture dataset path, so non-owner face crops land outside `/tmp`
   - it launches `python -m asee.video_server` together with `repos/asee/electron`
   - legacy wrapper flags such as `--chromium`, `--pwa-installing`, `--voice`, and `--ollama-vlm` remain accepted as compatibility no-ops
   - `stop` cleans up backend/viewer by process group, tolerates stale pid files, and always removes the launcher pid file

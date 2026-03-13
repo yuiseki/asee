@@ -163,6 +163,11 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
     assert "asee.video_server" in python_argv
     assert "--capture-profile" in python_argv
     assert python_argv[python_argv.index("--capture-profile") + 1] == "720p"
+    assert "--subject-capture-dir" in python_argv
+    assert (
+        python_argv[python_argv.index("--subject-capture-dir") + 1]
+        == "/home/yuiseki/Workspaces/private/datasets/faces/others"
+    )
 
     npm_invocation = _find_invocation(invocations, "npm")
     assert npm_invocation["argv"] == ["run", "build"]

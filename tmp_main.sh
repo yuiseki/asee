@@ -22,6 +22,7 @@ USE_CHROMIUM=false
 PWA_INSTALLING=false
 OLLAMA_VLM=false
 FACE_CAPTURE_DIR="${ASEE_FACE_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/faces/_raw}"
+SUBJECT_CAPTURE_DIR="${ASEE_SUBJECT_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/faces/others}"
 VIEWER_POLL_INTERVAL_MS="${ASEE_VIEWER_POLL_INTERVAL_MS:-2000}"
 VIEWER_RESPAWN="${ASEE_VIEWER_RESPAWN:-1}"
 VIEWER_RESPAWN_DELAY_SEC="${ASEE_VIEWER_RESPAWN_DELAY_SEC:-2}"
@@ -78,6 +79,7 @@ Live capture options:
   --disable-face-detect
   --detection-backend {opencv,onnxruntime}
   --face-capture-dir PATH
+  --subject-capture-dir PATH
 
 Layout options:
   --full-screen
@@ -124,6 +126,7 @@ while [[ $# -gt 0 ]]; do
     --pwa-installing) PWA_INSTALLING=true; shift ;;
     --ollama-vlm) OLLAMA_VLM=true; shift ;;
     --face-capture-dir) FACE_CAPTURE_DIR="$2"; shift 2 ;;
+    --subject-capture-dir) SUBJECT_CAPTURE_DIR="$2"; shift 2 ;;
     --full-screen) LAYOUT_MODE="full-screen"; shift ;;
     --left-bottom) LAYOUT_MODE="left-bottom"; shift ;;
     --frontmost) LAYOUT_MODE="frontmost"; shift ;;
@@ -499,6 +502,7 @@ cmd_start() {
     --cam-interval "${CAM_INTERVAL}"
     --title "${WINDOW_TITLE}"
     --face-capture-dir "${FACE_CAPTURE_DIR}"
+    --subject-capture-dir "${SUBJECT_CAPTURE_DIR}"
   )
   [[ -n "${CAMERAS}" ]] && server_args+=(--cameras "${CAMERAS}")
   [[ "${CAPTURE_PROFILE}" != "auto" ]] && server_args+=(--capture-profile "${CAPTURE_PROFILE}")
