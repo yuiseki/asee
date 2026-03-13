@@ -75,6 +75,17 @@ def test_owner_face_absent_for_lock_is_false_when_owner_present() -> None:
     assert client.owner_face_absent_for_lock(absent_lock_sec=120) is False
 
 
+def test_owner_face_absent_for_lock_is_false_during_status_warmup() -> None:
+    client = RemoteBiometricStatusClient(
+        status_url="http://127.0.0.1:8765/biometric_status",
+        opener=lambda request, timeout: _FakeResponse(  # noqa: ARG005
+            json.dumps({"ownerPresent": False}).encode("utf-8")
+        ),
+    )
+
+    assert client.owner_face_absent_for_lock(absent_lock_sec=120) is False
+
+
 def test_owner_face_recent_for_unlock_accepts_present_or_fresh_owner() -> None:
     present_client = RemoteBiometricStatusClient(
         status_url="http://127.0.0.1:8765/biometric_status",
@@ -191,6 +202,13 @@ def test_owner_face_absent_for_lock_from_status_applies_threshold() -> None:
     ) is True
     assert owner_face_absent_for_lock_from_status(
         {"ownerPresent": False, "ownerSeenAgoMs": 30_000},
+        absent_lock_sec=120,
+    ) is False
+
+
+def test_owner_face_absent_for_lock_from_status_is_false_when_age_is_missing() -> None:
+    assert owner_face_absent_for_lock_from_status(
+        {"ownerPresent": False},
         absent_lock_sec=120,
     ) is False
 
