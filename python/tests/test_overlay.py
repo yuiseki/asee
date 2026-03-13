@@ -149,6 +149,20 @@ def test_face_capture_writer_enabled_with_dir(tmp_path):
     overlay = GodModeOverlay(width=320, height=240, face_capture_dir=str(tmp_path))
 
     assert overlay._face_capture_writer is not None
+    assert overlay._face_capture_writer._min_interval == 10.0
+    assert overlay._face_capture_writer._max_per_day == 500_000
+    assert overlay._face_capture_writer._max_total == 500_000
+    assert overlay._face_capture_writer._max_bytes == 51_200 * 1024 * 1024
+
+
+def test_subject_capture_writer_uses_guest_collection_defaults(tmp_path):
+    overlay = GodModeOverlay(width=320, height=240, subject_capture_dir=str(tmp_path))
+
+    assert overlay._subject_capture_writer is not None
+    assert overlay._subject_capture_writer._min_interval == 10.0
+    assert overlay._subject_capture_writer._max_per_day == 500_000
+    assert overlay._subject_capture_writer._max_total == 500_000
+    assert overlay._subject_capture_writer._max_bytes == 51_200 * 1024 * 1024
 
 
 def test_classify_label_saves_subject_crop(blank_frame: np.ndarray):

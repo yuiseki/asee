@@ -35,6 +35,7 @@ cd ..
 
 - `../tmp_main.sh` is now the temporary canonical launcher when the backend should run together with the official Electron viewer.
 - it now forwards both `--face-capture-dir` and `--subject-capture-dir`, with the default persistent SUBJECT dataset under `/home/yuiseki/Workspaces/private/datasets/faces/others`.
+- during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
 - the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
 - `tmp_main.sh` now builds the Electron app before launch and supervises the viewer process separately, so a viewer-only crash can be retried without restarting the backend.

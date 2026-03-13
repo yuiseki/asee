@@ -41,6 +41,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - It starts `python -m asee.video_server` and the official `electron/` viewer together.
 - It now passes both OWNER raw face capture and SUBJECT capture directories through to the backend.
 - default persistent SUBJECT capture path: `/home/yuiseki/Workspaces/private/datasets/faces/others`
+- guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
 - the viewer supervisor now reapplies the default left-bottom KWin layout after each viewer launch, so a respawned Electron window does not drift back to the desktop center.

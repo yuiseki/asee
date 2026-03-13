@@ -33,6 +33,11 @@ COLOR_RED = (40, 40, 255)
 COLOR_GREEN = (40, 210, 40)
 COLOR_MAGENTA = (200, 40, 200)
 
+GUEST_CAPTURE_MIN_INTERVAL_SEC = 10.0
+GUEST_CAPTURE_MAX_FILES_PER_DAY = 500_000
+GUEST_CAPTURE_MAX_TOTAL_FILES = 500_000
+GUEST_CAPTURE_MAX_DISK_MB = 51_200
+
 type FrameArray = npt.NDArray[np.uint8]
 type EmbeddingArray = npt.NDArray[np.float32]
 
@@ -120,12 +125,24 @@ class GodModeOverlay:
         self._yunet_pipeline: YunetDetectionPipeline | None = None
 
         self._face_capture_writer = (
-            FaceCaptureWriter(face_capture_dir, min_interval_sec=face_capture_min_interval)
+            FaceCaptureWriter(
+                face_capture_dir,
+                min_interval_sec=GUEST_CAPTURE_MIN_INTERVAL_SEC,
+                max_files_per_day=GUEST_CAPTURE_MAX_FILES_PER_DAY,
+                max_total_files=GUEST_CAPTURE_MAX_TOTAL_FILES,
+                max_disk_mb=GUEST_CAPTURE_MAX_DISK_MB,
+            )
             if face_capture_dir is not None
             else None
         )
         self._subject_capture_writer = (
-            FaceCaptureWriter(subject_capture_dir, min_interval_sec=face_capture_min_interval)
+            FaceCaptureWriter(
+                subject_capture_dir,
+                min_interval_sec=GUEST_CAPTURE_MIN_INTERVAL_SEC,
+                max_files_per_day=GUEST_CAPTURE_MAX_FILES_PER_DAY,
+                max_total_files=GUEST_CAPTURE_MAX_TOTAL_FILES,
+                max_disk_mb=GUEST_CAPTURE_MAX_DISK_MB,
+            )
             if subject_capture_dir is not None
             else None
         )
