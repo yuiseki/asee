@@ -34,10 +34,12 @@ export function buildMainWindowOptions({
     y: bounds?.y,
     width: bounds?.width ?? 1600,
     height: bounds?.height ?? 900,
+    show: false,
     backgroundColor: '#07110d',
     title,
     autoHideMenuBar: true,
     frame: false,
+    focusable: true,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

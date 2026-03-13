@@ -13,10 +13,12 @@ describe('buildMainWindowOptions', () => {
       y: 1058,
       width: 2048,
       height: 1058,
+      show: false,
       backgroundColor: '#07110d',
       title: 'ASEE Viewer',
       autoHideMenuBar: true,
       frame: false,
+      focusable: true,
       webPreferences: {
         preload: '/tmp/preload.js',
         contextIsolation: true,

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { parseRuntimeOptions } from './runtime-options';
 import { buildDefaultViewerBounds, buildMainWindowOptions } from './window-options';
+import { bindStartupShowInactive } from './window-show';
 
 function createMainWindow(title: string): BrowserWindow {
   const bounds = buildDefaultViewerBounds(screen.getPrimaryDisplay().workArea);
@@ -20,6 +21,7 @@ function createMainWindow(title: string): BrowserWindow {
   } else {
     void window.loadFile(join(__dirname, '../renderer/index.html'));
   }
+  bindStartupShowInactive(window);
 
   return window;
 }
