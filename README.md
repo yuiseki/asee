@@ -58,6 +58,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - owner tilt-miss session collector:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.owner_tilt_miss_session --source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/14`
   - reuses the conservative owner-only SUBJECT triage, re-detects roll, and writes unresolved tilt misses into `private/datasets/faces/owner_tilt_miss_session/<source-date>/` plus `manifest.jsonl`
+- owner camera-disagreement session collector:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_camera_disagreement_session --subject-source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/14 --owner-source /home/yuiseki/Workspaces/private/datasets/faces/_raw/2026/03/14`
+  - matches single-face SUBJECT captures against nearby single-face OWNER captures from other cameras and writes disagreement misses into `private/datasets/faces/owner_camera_disagreement_session/<source-date>/` plus `manifest.jsonl`
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - captured face crops now write a sidecar `.json` with timestamp, score, label, face box, and per-frame counts so later relabeling/triage can use metadata instead of filenames alone.
 - The official Electron window caption is `ASEE Viewer`.
