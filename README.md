@@ -46,6 +46,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - offline owner-embedding retrain/validation helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.retrain_owner_embedding --negative-validation-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - default mode is validation-only (`--apply` is required to overwrite the live owner embedding)
+- mixed SUBJECT session triage helper:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
+  - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.

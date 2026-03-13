@@ -40,6 +40,9 @@ cd ..
 - offline retrain/validation helper for owner embeddings:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.retrain_owner_embedding --negative-validation-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - default mode is validation-only; add `--apply` only after the before/after metrics look safe.
+- mixed subject-session triage helper:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
+  - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
 - during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
 - the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
