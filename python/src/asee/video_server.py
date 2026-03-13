@@ -1040,7 +1040,7 @@ class GodModeVideoServer:
                     faces_per_cam: dict[int, list[FaceBox]] = {cid: [] for cid in camera_ids}
 
                     for req, embedding in zip(recognition_requests, embeddings, strict=False):
-                        _, face_box, device, _ = req
+                        source_frame, face_box, device, _ = req
                         if embedding is not None:
                             # Classify owner status using extracted embedding
                             face_box.label, face_box.confidence = (
@@ -1049,6 +1049,12 @@ class GodModeVideoServer:
                                     face_box,
                                 )
                             )
+                        self.overlay._save_face_capture(
+                            source_frame,
+                            face_box,
+                            label=face_box.label,
+                            score=face_box.confidence,
+                        )
 
                         faces_per_cam[device].append(face_box)
 

@@ -215,6 +215,51 @@ class TestGodModeVideoServer:
         assert server.runtime.overlay_state.caption == "テスト観測"
         assert server.runtime.overlay_state.prediction == "テスト予測"
 
+    def test_centralized_detection_worker_saves_face_crops_after_classification(self) -> None:
+        server = GodModeVideoServer(
+            port=188671,
+            device_index=None,
+            camera_list=[0],
+            allow_live_camera=True,
+        )
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        row = np.zeros(15, dtype=np.float32)
+        row[0], row[1], row[2], row[3], row[14] = 30, 40, 80, 90, 0.85
+        server.runtime.update_frame(frame, camera_id=0)
+        server.overlay._detector = type(
+            "FakeDetector",
+            (),
+            {"detect_batch": lambda self, frames: (None, [[row]])},
+        )()
+
+        with (
+            patch.object(
+                server.overlay,
+                "extract_embeddings_batch",
+                return_value=[np.zeros((1, 128), dtype=np.float32)],
+            ),
+            patch.object(
+                server.overlay,
+                "_classify_label_with_embedding",
+                return_value=("SUBJECT", 0.61),
+            ),
+            patch.object(server.overlay, "_save_face_capture") as save_capture,
+            patch.object(server, "_record_detection"),
+            patch.object(
+                server,
+                "_record_owner_presence",
+                side_effect=lambda *args, **kwargs: server._stop_event.set(),
+            ),
+        ):
+            server._face_detect_worker_centralized()
+
+        save_capture.assert_called_once()
+        save_frame, save_face_box = save_capture.call_args.args[:2]
+        assert save_frame.shape == frame.shape
+        assert save_face_box.label == "SUBJECT"
+        assert save_face_box.confidence == 0.61
+        assert save_capture.call_args.kwargs == {"label": "SUBJECT", "score": 0.61}
+
     def test_biometric_status_defaults_when_no_owner_seen(self) -> None:
         server = GodModeVideoServer(port=18868, device_index=None)
 
