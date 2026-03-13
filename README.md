@@ -49,6 +49,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - mixed SUBJECT session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
+- owner-only false-negative triage helper:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_owner_only_false_negatives --source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/14`
+  - writes conservative copies into `private/datasets/faces/others_owner_only_triaged/<source-leaf>/{likely_owner_false_negative,low_quality,uncertain}` plus `manifest.jsonl`
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - captured face crops now write a sidecar `.json` with timestamp, score, label, face box, and per-frame counts so later relabeling/triage can use metadata instead of filenames alone.
 - The official Electron window caption is `ASEE Viewer`.

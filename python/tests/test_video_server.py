@@ -468,7 +468,7 @@ class TestGodModeVideoServer:
         )
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
-        assert wait_until(lambda: server.is_running)
+        assert wait_until(lambda: server.is_running, timeout=5.0)
 
         try:
             with urlopen(
