@@ -383,8 +383,13 @@ class GodModeOverlay:
     def _classify_label(self, frame: FrameArray, face_box: FaceBox) -> tuple[str, float]:
         embedding = self.extract_embedding(frame, face_box)
         if embedding is None:
-            return "SUBJECT", face_box.confidence
-        return self._classify_label_with_embedding(embedding, face_box)
+            label = "SUBJECT"
+            score = face_box.confidence
+            self._save_face_capture(frame, face_box, label=label, score=score)
+            return label, score
+        label, score = self._classify_label_with_embedding(embedding, face_box)
+        self._save_face_capture(frame, face_box, label=label, score=score)
+        return label, score
 
     def _classify_label_with_embedding(
         self, embedding: EmbeddingArray, face_box: FaceBox
@@ -415,6 +420,34 @@ class GodModeOverlay:
             return "SUBJECT", face_box.confidence
 
         return "SUBJECT", face_box.confidence
+
+    def _save_face_capture(
+        self,
+        frame: FrameArray,
+        face_box: FaceBox,
+        *,
+        label: str,
+        score: float,
+    ) -> None:
+        writer = None
+        if label == "OWNER":
+            writer = self._face_capture_writer
+        elif label == "SUBJECT":
+            writer = self._subject_capture_writer
+        if writer is None:
+            return
+
+        frame_h, frame_w = frame.shape[:2]
+        x1 = max(0, face_box.x)
+        y1 = max(0, face_box.y)
+        x2 = min(x1 + face_box.w, frame_w)
+        y2 = min(y1 + face_box.h, frame_h)
+        if x2 <= x1 or y2 <= y1:
+            return
+        crop = frame[y1:y2, x1:x2]
+        if crop.size <= 0:
+            return
+        writer.save(crop, score)
 
     def _draw_grid(self, image: FrameArray, width: int, height: int) -> None:
         step = 80

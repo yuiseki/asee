@@ -151,6 +151,44 @@ def test_face_capture_writer_enabled_with_dir(tmp_path):
     assert overlay._face_capture_writer is not None
 
 
+def test_classify_label_saves_subject_crop(blank_frame: np.ndarray):
+    overlay = GodModeOverlay(width=320, height=240, subject_capture_dir="/tmp/subject-capture-test")
+    writer = MagicMock()
+    overlay._subject_capture_writer = writer
+    overlay._face_capture_writer = None
+    overlay._owner_embeddings = None
+    face = FaceBox(x=10, y=20, w=30, h=40)
+
+    label, score = overlay._classify_label(blank_frame.copy(), face)
+
+    assert label == "SUBJECT"
+    writer.save.assert_called_once()
+    crop_arg, score_arg = writer.save.call_args.args
+    assert crop_arg.shape == (40, 30, 3)
+    assert score_arg == score
+
+
+def test_classify_label_saves_owner_crop(blank_frame: np.ndarray):
+    overlay = GodModeOverlay(width=320, height=240, face_capture_dir="/tmp/owner-capture-test")
+    writer = MagicMock()
+    overlay._face_capture_writer = writer
+    overlay._subject_capture_writer = None
+    overlay._owner_embeddings = np.zeros((1, 128), dtype=np.float32)
+    overlay._recognizer = MagicMock()
+    overlay._recognizer.match.return_value = 0.9
+    with patch.object(overlay, "extract_embedding", return_value=np.zeros((1, 128), dtype=np.float32)):
+        label, score = overlay._classify_label(
+            blank_frame.copy(),
+            FaceBox(x=15, y=25, w=35, h=45),
+        )
+
+    assert label == "OWNER"
+    writer.save.assert_called_once()
+    crop_arg, score_arg = writer.save.call_args.args
+    assert crop_arg.shape == (45, 35, 3)
+    assert score_arg == score
+
+
 def test_detection_backend_opencv_default():
     """Default backend must load cv2.FaceDetectorYN (or None if model missing)."""
     overlay = GodModeOverlay(width=320, height=240)
