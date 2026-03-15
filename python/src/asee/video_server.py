@@ -515,7 +515,7 @@ class GodModeVideoServer:
             self._single_camera_source = -1
         self._capture_reopen_failure_threshold = 10
         self._capture_stale_frame_threshold = 45
-        self._small_face_rescue_threshold = 160
+        self._small_face_rescue_threshold = 220
         self._camera_expected_face_size: dict[int, float | None] = {
             device: None for device in self._camera_list
         }
@@ -857,8 +857,10 @@ class GodModeVideoServer:
         expected_face = self._camera_expected_face_size.get(device)
         probe_face = largest_face if largest_face is not None else expected_face
         if probe_face is None:
-            return 2.0
+            return 3.0
         if probe_face <= 96:
+            return 3.0
+        if probe_face <= 160:
             return 2.0
         if probe_face <= self._small_face_rescue_threshold:
             return 1.5
