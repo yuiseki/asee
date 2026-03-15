@@ -61,6 +61,11 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - owner camera-disagreement session collector:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_camera_disagreement_session --subject-source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/14 --owner-source /home/yuiseki/Workspaces/private/datasets/faces/_raw/2026/03/14`
   - matches single-face SUBJECT captures against nearby single-face OWNER captures from other cameras and writes disagreement misses into `private/datasets/faces/owner_camera_disagreement_session/<source-date>/` plus `manifest.jsonl`
+- golden review workspace generator:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.golden_review_workflow --name owner-golden-2026-03-15 --source /home/yuiseki/Workspaces/private/datasets/faces/owner_false_negative/2026/03/15/15 --source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/15/16`
+  - writes a self-contained review workspace into `private/datasets/faces/golden_review_workspaces/<name>/`
+  - includes `assets/`, `manifest.jsonl`, `label_studio/tasks.json`, `label_studio/config.xml`, `launch_fiftyone.sh`, and `launch_label_studio.sh`
+  - intended workflow: inspect/filter in FiftyOne first, then apply final gold labels in Label Studio
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - captured face crops now write a sidecar `.json` with timestamp, score, label, face box, and per-frame counts so later relabeling/triage can use metadata instead of filenames alone.
 - The official Electron window caption is `ASEE Viewer`.
