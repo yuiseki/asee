@@ -515,6 +515,10 @@ class GodModeVideoServer:
             self._single_camera_source = -1
         self._capture_reopen_failure_threshold = 10
         self._capture_stale_frame_threshold = 45
+        self._small_face_rescue_threshold = 160
+        self._camera_expected_face_size: dict[int, float | None] = {
+            device: None for device in self._camera_list
+        }
         self._stream_state_lock = threading.Lock()
         self._stream_state_changed = threading.Condition(self._stream_state_lock)
         self._stream_revisions: dict[int | None, int] = {None: 0}
@@ -784,6 +788,127 @@ class GodModeVideoServer:
     def _camera_frame_signature(self, frame: FrameArray) -> bytes:
         sample = frame[::64, ::64]
         return sample.tobytes()
+
+    @staticmethod
+    def _detection_largest_face_size(detections: Any) -> int | None:
+        if detections is None or len(detections) == 0:
+            return None
+        return max(int(max(float(row[2]), float(row[3]))) for row in detections)
+
+    @staticmethod
+    def _detection_best_confidence(detections: Any) -> float:
+        if detections is None or len(detections) == 0:
+            return 0.0
+        return max(float(row[14]) for row in detections)
+
+    @staticmethod
+    def _scale_detection_rows(detections: Any, *, scale: float) -> Any:
+        if detections is None:
+            return None
+        scaled = np.array(detections, dtype=np.float32, copy=True)
+        if scaled.size == 0:
+            return scaled
+        scaled[:, 0:4] /= scale
+        scaled[:, 4:14] /= scale
+        return scaled
+
+    def _detect_rows(
+        self,
+        detector: Any,
+        frame: FrameArray,
+    ) -> Any:
+        if hasattr(detector, "detect"):
+            _, detections = detector.detect(frame)
+            return detections
+        if hasattr(detector, "detect_batch"):
+            _, batch_results = detector.detect_batch([frame])
+            return batch_results[0] if batch_results else None
+        return None
+
+    def _detect_rows_with_upscale(
+        self,
+        detector: Any,
+        frame: FrameArray,
+        *,
+        scale: float,
+    ) -> Any:
+        if scale <= 1.0:
+            return None
+        enlarged = cast(
+            FrameArray,
+            cv2.resize(
+                frame,
+                dsize=None,
+                fx=scale,
+                fy=scale,
+                interpolation=cv2.INTER_LINEAR,
+            ),
+        )
+        detections = self._detect_rows(detector, enlarged)
+        return self._scale_detection_rows(detections, scale=scale)
+
+    def _preferred_small_face_scale(
+        self,
+        device: int,
+        *,
+        detections: Any,
+    ) -> float | None:
+        largest_face = self._detection_largest_face_size(detections)
+        expected_face = self._camera_expected_face_size.get(device)
+        probe_face = largest_face if largest_face is not None else expected_face
+        if probe_face is None:
+            return 2.0
+        if probe_face <= 96:
+            return 2.0
+        if probe_face <= self._small_face_rescue_threshold:
+            return 1.5
+        return None
+
+    def _update_camera_expected_face_size(
+        self,
+        device: int,
+        detections: Any,
+    ) -> None:
+        largest_face = self._detection_largest_face_size(detections)
+        if largest_face is None:
+            return
+        previous = self._camera_expected_face_size.get(device)
+        if previous is None:
+            self._camera_expected_face_size[device] = float(largest_face)
+            return
+        self._camera_expected_face_size[device] = previous * 0.7 + float(largest_face) * 0.3
+
+    def _refine_small_face_detections(
+        self,
+        *,
+        detector: Any,
+        device: int,
+        frame: FrameArray,
+        detections: Any,
+    ) -> Any:
+        rescue_scale = self._preferred_small_face_scale(device, detections=detections)
+        if rescue_scale is None:
+            self._update_camera_expected_face_size(device, detections)
+            return detections
+        rescue_detections = self._detect_rows_with_upscale(
+            detector,
+            frame,
+            scale=rescue_scale,
+        )
+        native_confidence = self._detection_best_confidence(detections)
+        rescue_confidence = self._detection_best_confidence(rescue_detections)
+        use_rescue = (
+            (detections is None or len(detections) == 0)
+            and rescue_detections is not None
+            and len(rescue_detections) > 0
+        ) or (
+            rescue_detections is not None
+            and len(rescue_detections) > 0
+            and rescue_confidence >= native_confidence + 0.05
+        )
+        chosen = rescue_detections if use_rescue else detections
+        self._update_camera_expected_face_size(device, chosen)
+        return chosen
 
     def _open_camera(self, device_index: int) -> Any:
         source = self._resolve_camera_source(device_index)
@@ -1195,10 +1320,15 @@ class GodModeVideoServer:
 
                 for i, detections in enumerate(batch_results):
                     device = camera_ids[i]
+                    source_frame = frames_to_process[i]
+                    detections = self._refine_small_face_detections(
+                        detector=detector,
+                        device=device,
+                        frame=source_frame,
+                        detections=detections,
+                    )
                     if detections is None:
                         continue
-
-                    source_frame = frames_to_process[i]
                     frame_h, frame_w = source_frame.shape[:2]
 
                     for row in detections:
