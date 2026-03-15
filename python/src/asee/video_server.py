@@ -516,6 +516,7 @@ class GodModeVideoServer:
         self._capture_reopen_failure_threshold = 10
         self._capture_stale_frame_threshold = 45
         self._small_face_rescue_threshold = 220
+        self._relative_face_size_gate_ratio = 0.45
         self._camera_expected_face_size: dict[int, float | None] = {
             device: None for device in self._camera_list
         }
@@ -880,6 +881,38 @@ class GodModeVideoServer:
             return
         self._camera_expected_face_size[device] = previous * 0.7 + float(largest_face) * 0.3
 
+    def _empty_detections_like(self, detections: Any) -> Any:
+        if detections is None:
+            return None
+        if hasattr(detections, "shape") and len(detections.shape) == 2:
+            return np.empty((0, int(detections.shape[1])), dtype=np.float32)
+        return np.empty((0, 15), dtype=np.float32)
+
+    def _filter_relative_face_sizes(
+        self,
+        *,
+        device: int,
+        detections: Any,
+    ) -> Any:
+        if detections is None or len(detections) == 0:
+            return detections
+        expected_face = self._camera_expected_face_size.get(device)
+        if expected_face is None or expected_face <= 0:
+            self._update_camera_expected_face_size(device, detections)
+            return detections
+
+        min_face_size = expected_face * self._relative_face_size_gate_ratio
+        kept_rows = [
+            row
+            for row in detections
+            if max(float(row[2]), float(row[3])) >= min_face_size
+        ]
+        if not kept_rows:
+            return self._empty_detections_like(detections)
+        filtered = np.asarray(kept_rows, dtype=np.float32)
+        self._update_camera_expected_face_size(device, filtered)
+        return filtered
+
     def _refine_small_face_detections(
         self,
         *,
@@ -890,7 +923,6 @@ class GodModeVideoServer:
     ) -> Any:
         rescue_scale = self._preferred_small_face_scale(device, detections=detections)
         if rescue_scale is None:
-            self._update_camera_expected_face_size(device, detections)
             return detections
         rescue_detections = self._detect_rows_with_upscale(
             detector,
@@ -908,9 +940,7 @@ class GodModeVideoServer:
             and len(rescue_detections) > 0
             and rescue_confidence >= native_confidence + 0.05
         )
-        chosen = rescue_detections if use_rescue else detections
-        self._update_camera_expected_face_size(device, chosen)
-        return chosen
+        return rescue_detections if use_rescue else detections
 
     def _open_camera(self, device_index: int) -> Any:
         source = self._resolve_camera_source(device_index)
@@ -1327,6 +1357,10 @@ class GodModeVideoServer:
                         detector=detector,
                         device=device,
                         frame=source_frame,
+                        detections=detections,
+                    )
+                    detections = self._filter_relative_face_sizes(
+                        device=device,
                         detections=detections,
                     )
                     if detections is None:

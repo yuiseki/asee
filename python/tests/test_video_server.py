@@ -912,6 +912,76 @@ class TestOpenCameraResolution:
         assert refined is not None
         np.testing.assert_allclose(refined[:, :4], rescue[:, :4])
 
+    def test_filter_relative_face_sizes_drops_much_smaller_detection_after_large_face(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[6],
+            allow_live_camera=True,
+        )
+        server._camera_expected_face_size[6] = 220.0
+        detections = np.array(
+            [
+                [
+                    100.0,
+                    120.0,
+                    210.0,
+                    210.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.81,
+                ],
+                [
+                    800.0,
+                    300.0,
+                    52.0,
+                    52.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.88,
+                ],
+            ],
+            dtype=np.float32,
+        )
+
+        filtered = server._filter_relative_face_sizes(device=6, detections=detections)
+
+        assert filtered is not None
+        assert filtered.shape == (1, 15)
+        np.testing.assert_allclose(filtered[0, :4], detections[0, :4])
+
+    def test_filter_relative_face_sizes_rejects_only_tiny_detection_after_large_face(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[6],
+            allow_live_camera=True,
+        )
+        server._camera_expected_face_size[6] = 220.0
+        detections = np.array(
+            [[800.0, 300.0, 52.0, 52.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.88]],
+            dtype=np.float32,
+        )
+
+        filtered = server._filter_relative_face_sizes(device=6, detections=detections)
+
+        assert filtered is not None
+        assert filtered.shape == (0, 15)
+
 
 class TestCaptureLoopPacing:
     def test_capture_loop_device_does_not_sleep_after_successful_read(self) -> None:
