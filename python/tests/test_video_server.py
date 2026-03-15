@@ -720,6 +720,38 @@ class TestGodModeVideoServer:
 
 
 class TestOpenCameraResolution:
+    def test_bootstrap_camera_sources_reuses_leftover_stable_source_for_missing_device(
+        self,
+    ) -> None:
+        with (
+            patch(
+                "asee.video_server.discover_stable_camera_source",
+                side_effect=[
+                    "/dev/v4l/by-id/anker",
+                    "/dev/v4l/by-id/aoni",
+                    "/dev/v4l/by-id/c920-main",
+                    None,
+                ],
+            ),
+            patch(
+                "asee.video_server.discover_available_stable_camera_sources",
+                return_value=[
+                    "/dev/v4l/by-id/anker",
+                    "/dev/v4l/by-id/aoni",
+                    "/dev/v4l/by-id/c920-main",
+                    "/dev/v4l/by-id/c920-side",
+                ],
+            ),
+            patch("asee.video_server.Path.exists", return_value=False),
+        ):
+            server = GodModeVideoServer(
+                device_index=None,
+                camera_list=[0, 2, 4, 6],
+                allow_live_camera=True,
+            )
+
+        assert server._camera_sources[6] == "/dev/v4l/by-id/c920-side"
+
     def test_decode_fourcc_value_round_trips_mjpg(self) -> None:
         import cv2
 
@@ -847,3 +879,116 @@ class TestCaptureLoopPacing:
 
         sleep.assert_any_call(0.05)
         assert fake_cap.released is True
+
+    def test_capture_loop_device_reopens_after_repeated_read_failures(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[2],
+            allow_live_camera=True,
+        )
+        server._capture_reopen_failure_threshold = 2
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        class FailingCap:
+            def __init__(self) -> None:
+                self.released = False
+                self.calls = 0
+
+            def read(self) -> tuple[bool, np.ndarray | None]:
+                self.calls += 1
+                return False, None
+
+            def release(self) -> None:
+                self.released = True
+
+        class RecoveryCap:
+            def __init__(self) -> None:
+                self.released = False
+
+            def read(self) -> tuple[bool, np.ndarray]:
+                return True, frame
+
+            def release(self) -> None:
+                self.released = True
+
+        failing_cap = FailingCap()
+        recovery_cap = RecoveryCap()
+
+        def stop_after_success(*_args: object) -> None:
+            server.stop()
+
+        with (
+            patch.object(
+                server,
+                "_open_camera",
+                side_effect=[failing_cap, recovery_cap],
+            ) as open_camera,
+            patch.object(
+                server,
+                "_record_capture_success",
+                side_effect=stop_after_success,
+            ),
+            patch("asee.video_server.time.sleep"),
+        ):
+            server._capture_loop_device(2)
+
+        assert open_camera.call_count == 2
+        assert failing_cap.released is True
+        assert recovery_cap.released is True
+
+    def test_capture_loop_device_reopens_after_stale_identical_frames(self) -> None:
+        server = GodModeVideoServer(
+            device_index=None,
+            camera_list=[2],
+            allow_live_camera=True,
+        )
+        server._capture_stale_frame_threshold = 2
+        stale_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        fresh_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        fresh_frame[0, 0, 0] = 255
+
+        class StaleCap:
+            def __init__(self) -> None:
+                self.released = False
+
+            def read(self) -> tuple[bool, np.ndarray]:
+                return True, stale_frame.copy()
+
+            def release(self) -> None:
+                self.released = True
+
+        class RecoveryCap:
+            def __init__(self) -> None:
+                self.released = False
+
+            def read(self) -> tuple[bool, np.ndarray]:
+                return True, fresh_frame.copy()
+
+            def release(self) -> None:
+                self.released = True
+
+        stale_cap = StaleCap()
+        recovery_cap = RecoveryCap()
+
+        def stop_after_success(device: int, frame_value: np.ndarray) -> None:
+            if frame_value[0, 0, 0] == 255:
+                server.stop()
+
+        with (
+            patch.object(
+                server,
+                "_open_camera",
+                side_effect=[stale_cap, recovery_cap],
+            ) as open_camera,
+            patch.object(
+                server,
+                "_record_capture_success",
+                side_effect=stop_after_success,
+            ),
+            patch("asee.video_server.time.sleep"),
+        ):
+            server._capture_loop_device(2)
+
+        assert open_camera.call_count == 2
+        assert stale_cap.released is True
+        assert recovery_cap.released is True

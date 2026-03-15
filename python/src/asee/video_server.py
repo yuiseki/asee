@@ -50,6 +50,7 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 OWNER_EMBED_PATH = resolve_model_asset_path("owner_embedding.npy")
 
 type FrameArray = npt.NDArray[np.uint8]
+type CameraCaptureSource = int | str
 
 
 class LiveCameraDisabledError(RuntimeError):
@@ -178,6 +179,65 @@ def resolve_camera_args(*, device: int, cameras_csv: str) -> tuple[int | None, l
     if device < 0:
         return None, None
     return device, None
+
+
+def discover_stable_camera_source(device_index: int) -> str | None:
+    """Return a stable V4L symlink for the current numeric device, if available."""
+    device_path = Path(f"/dev/video{device_index}")
+    if not device_path.exists():
+        return None
+
+    candidates = [
+        Path("/dev/v4l/by-id"),
+        Path("/dev/v4l/by-path"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        try:
+            entries = sorted(base.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.resolve() != device_path.resolve():
+                    continue
+            except OSError:
+                continue
+            if entry.name.endswith("video-index0"):
+                return str(entry)
+        for entry in entries:
+            try:
+                if entry.resolve() == device_path.resolve():
+                    return str(entry)
+            except OSError:
+                continue
+    return None
+
+
+def discover_available_stable_camera_sources() -> list[str]:
+    """List unique stable V4L symlinks, preferring by-id over by-path."""
+    discovered: list[str] = []
+    seen_targets: set[Path] = set()
+    for base in (Path("/dev/v4l/by-id"), Path("/dev/v4l/by-path")):
+        if not base.exists():
+            continue
+        try:
+            entries = sorted(base.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.name.endswith("video-index0"):
+                continue
+            try:
+                target = entry.resolve()
+            except OSError:
+                continue
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            discovered.append(str(entry))
+    return discovered
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -446,6 +506,15 @@ class GodModeVideoServer:
             device: CameraRuntimeStats() for device in self._camera_list
         }
         self._single_camera_stats = CameraRuntimeStats()
+        self._camera_sources = self._bootstrap_camera_sources(self._camera_list)
+        if self.device_index is not None:
+            self._single_camera_source: CameraCaptureSource = (
+                discover_stable_camera_source(self.device_index) or self.device_index
+            )
+        else:
+            self._single_camera_source = -1
+        self._capture_reopen_failure_threshold = 10
+        self._capture_stale_frame_threshold = 45
         self._stream_state_lock = threading.Lock()
         self._stream_state_changed = threading.Condition(self._stream_state_lock)
         self._stream_revisions: dict[int | None, int] = {None: 0}
@@ -459,6 +528,39 @@ class GodModeVideoServer:
         self._webrtc_broadcaster = OverlayBroadcaster()
         self._http_server: werkzeug.serving.BaseWSGIServer | None = None
         self._load_owner_embedding(owner_embedding_path)
+
+    def _bootstrap_camera_sources(
+        self,
+        camera_ids: Sequence[int],
+    ) -> dict[int, CameraCaptureSource]:
+        assigned: dict[int, CameraCaptureSource] = {}
+        used_sources: set[str] = set()
+        for device in camera_ids:
+            discovered = discover_stable_camera_source(device)
+            if discovered is not None:
+                assigned[device] = discovered
+                used_sources.add(discovered)
+            else:
+                assigned[device] = device
+
+        leftovers = [
+            source
+            for source in discover_available_stable_camera_sources()
+            if source not in used_sources
+        ]
+        unresolved = [
+            device
+            for device, source in assigned.items()
+            if isinstance(source, int) and not Path(f"/dev/video{source}").exists()
+        ]
+        for device, source in zip(unresolved, leftovers, strict=False):
+            assigned[device] = source
+            logger.info(
+                "Camera %s remapped to stable source %s after device re-enumeration",
+                device,
+                source,
+            )
+        return assigned
 
     @property
     def current_frame(self) -> FrameArray | None:
@@ -661,24 +763,52 @@ class GodModeVideoServer:
             cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR),
         )
 
+    def _resolve_camera_source(self, device_index: int) -> CameraCaptureSource:
+        stored = self._camera_sources.get(device_index)
+        if stored is not None:
+            if isinstance(stored, str) and Path(stored).exists():
+                return stored
+            if isinstance(stored, int):
+                discovered = discover_stable_camera_source(stored)
+                if discovered is not None:
+                    self._camera_sources[device_index] = discovered
+                    return discovered
+                return stored
+        discovered = discover_stable_camera_source(device_index)
+        if discovered is not None:
+            self._camera_sources[device_index] = discovered
+            return discovered
+        self._camera_sources[device_index] = device_index
+        return device_index
+
+    def _camera_frame_signature(self, frame: FrameArray) -> bytes:
+        sample = frame[::64, ::64]
+        return sample.tobytes()
+
     def _open_camera(self, device_index: int) -> Any:
+        source = self._resolve_camera_source(device_index)
         self._diagnostics.log_event(
             "camera_open_attempt",
             camera_id=device_index,
+            camera_source=source,
             requested_width=self.width,
             requested_height=self.height,
             requested_fps=self._capture_fps,
             requested_fourcc=self._capture_fourcc,
         )
-        cap = cv2.VideoCapture(device_index)
+        cap = cv2.VideoCapture(source)
         fourcc = cv2.VideoWriter_fourcc(*self._capture_fourcc)  # type: ignore[attr-defined]
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         cap.set(cv2.CAP_PROP_FPS, self._capture_fps)
         if not cap.isOpened():
-            logger.error("Cannot open camera device %s", device_index)
-            self._diagnostics.log_event("camera_open_failed", camera_id=device_index)
+            logger.error("Cannot open camera device %s (source=%s)", device_index, source)
+            self._diagnostics.log_event(
+                "camera_open_failed",
+                camera_id=device_index,
+                camera_source=source,
+            )
             cap.release()
             return None
         actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -700,12 +830,29 @@ class GodModeVideoServer:
         self._diagnostics.log_event(
             "camera_opened",
             camera_id=device_index,
+            camera_source=source,
             actual_width=actual_width,
             actual_height=actual_height,
             actual_fps=actual_fps,
             actual_fourcc=actual_fourcc,
         )
         return cap
+
+    def _reopen_camera(self, device_index: int, current_cap: Any, *, reason: str) -> Any:
+        self._diagnostics.log_event(
+            "camera_reopen_requested",
+            camera_id=device_index,
+            reason=reason,
+        )
+        logger.warning("Reopening camera %s after %s", device_index, reason)
+        reopened = self._open_camera(device_index)
+        if reopened is None:
+            return current_cap
+        try:
+            current_cap.release()
+        except Exception:
+            logger.warning("Failed to release camera %s during reopen", device_index)
+        return reopened
 
     def _apply_opencv_thread_limit(self) -> None:
         if self._opencv_threads is None:
@@ -731,6 +878,8 @@ class GodModeVideoServer:
         if cap is None:
             self.update_frame(np.zeros((self.height, self.width, 3), dtype=np.uint8))
             return
+        last_signature: bytes | None = None
+        consecutive_stale_frames = 0
 
         while not self._stop_event.is_set():
             if self._switch_event.is_set():
@@ -751,9 +900,30 @@ class GodModeVideoServer:
             ok, frame = cap.read()
             if not ok:
                 self._record_capture_failure(current_device)
+                if (
+                    self._single_camera_stats.consecutive_read_failures
+                    >= self._capture_reopen_failure_threshold
+                ):
+                    cap = self._reopen_camera(
+                        current_device,
+                        cap,
+                        reason="repeated_read_failures",
+                    )
+                    self._single_camera_stats.consecutive_read_failures = 0
                 time.sleep(0.05)
                 continue
             normalized = self._normalize_frame(frame)
+            signature = self._camera_frame_signature(normalized)
+            if signature == last_signature:
+                consecutive_stale_frames += 1
+            else:
+                consecutive_stale_frames = 0
+            last_signature = signature
+            if consecutive_stale_frames >= self._capture_stale_frame_threshold:
+                cap = self._reopen_camera(current_device, cap, reason="stale_frame")
+                consecutive_stale_frames = 0
+                last_signature = None
+                continue
             self.update_frame(normalized)
             self._record_capture_success(current_device, normalized)
 
@@ -767,14 +937,37 @@ class GodModeVideoServer:
             fallback = np.zeros((self.height, self.width, 3), dtype=np.uint8)
             self.update_frame(fallback, camera_id=device)
             return
+        last_signature: bytes | None = None
+        consecutive_stale_frames = 0
 
         while not self._stop_event.is_set():
             ok, frame = cap.read()
             if not ok:
                 self._record_capture_failure(device)
+                if (
+                    self._camera_stats[device].consecutive_read_failures
+                    >= self._capture_reopen_failure_threshold
+                ):
+                    cap = self._reopen_camera(
+                        device,
+                        cap,
+                        reason="repeated_read_failures",
+                    )
+                    self._camera_stats[device].consecutive_read_failures = 0
                 time.sleep(0.05)
                 continue
             normalized = self._normalize_frame(frame)
+            signature = self._camera_frame_signature(normalized)
+            if signature == last_signature:
+                consecutive_stale_frames += 1
+            else:
+                consecutive_stale_frames = 0
+            last_signature = signature
+            if consecutive_stale_frames >= self._capture_stale_frame_threshold:
+                cap = self._reopen_camera(device, cap, reason="stale_frame")
+                consecutive_stale_frames = 0
+                last_signature = None
+                continue
             self.update_frame(normalized, camera_id=device)
             self._record_capture_success(device, normalized)
 
