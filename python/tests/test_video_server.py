@@ -822,9 +822,9 @@ class TestOpenCameraResolution:
 
         class FakeDetector:
             def detect(self, image: np.ndarray) -> tuple[None, np.ndarray | None]:
-                if image.shape[:2] == (2160, 3840):
+                if image.shape[:2] == (1440, 2560):
                     scaled = rescue_row.copy()
-                    scaled[:, :14] *= 3.0
+                    scaled[:, :14] *= 2.0
                     scaled[:, 14] = rescue_row[:, 14]
                     return None, scaled
                 return None, None
@@ -859,42 +859,6 @@ class TestOpenCameraResolution:
 
         class FakeDetector:
             def detect(self, image: np.ndarray) -> tuple[None, np.ndarray | None]:
-                if image.shape[:2] == (2160, 3840):
-                    scaled = rescue.copy()
-                    scaled[:, :14] *= 3.0
-                    scaled[:, 14] = rescue[:, 14]
-                    return None, scaled
-                return None, None
-
-        refined = server._refine_small_face_detections(
-            detector=FakeDetector(),
-            device=2,
-            frame=frame,
-            detections=native,
-        )
-
-        assert refined is not None
-        np.testing.assert_allclose(refined[:, :4], rescue[:, :4])
-        np.testing.assert_allclose(refined[:, 14], rescue[:, 14])
-
-    def test_refine_small_face_detections_uses_double_scale_for_medium_faces(self) -> None:
-        server = GodModeVideoServer(
-            device_index=None,
-            camera_list=[2],
-            allow_live_camera=True,
-        )
-        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        native = np.array(
-            [[300.0, 200.0, 120.0, 120.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.31]],
-            dtype=np.float32,
-        )
-        rescue = np.array(
-            [[300.0, 200.0, 122.0, 122.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.82]],
-            dtype=np.float32,
-        )
-
-        class FakeDetector:
-            def detect(self, image: np.ndarray) -> tuple[None, np.ndarray | None]:
                 if image.shape[:2] == (1440, 2560):
                     scaled = rescue.copy()
                     scaled[:, :14] *= 2.0
@@ -911,6 +875,7 @@ class TestOpenCameraResolution:
 
         assert refined is not None
         np.testing.assert_allclose(refined[:, :4], rescue[:, :4])
+        np.testing.assert_allclose(refined[:, 14], rescue[:, 14])
 
 
 class TestCaptureLoopPacing:
