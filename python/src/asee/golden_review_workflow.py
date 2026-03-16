@@ -75,6 +75,11 @@ def build_label_studio_config(
       <Text name="existing_label_meta" value="$existing_label"/>
       <Text name="score_meta" value="$score"/>
       <Text name="frame_counts_meta" value="$frame_counts"/>
+      <Header value="Golden label semantics"/>
+      <Text name="label_help_owner" value="owner_positive = owner face image"/>
+      <Text name="label_help_guest" value="guest_negative = guest face image"/>
+      <Text name="label_help_non_face" value="non_face_negative = non-face false detection image"/>
+      <Text name="label_help_uncertain" value="uncertain = uncertain / holdout image"/>
       <Choices name="gold_label" toName="image" choice="single-radio" required="true">
 {choice_lines}
       </Choices>

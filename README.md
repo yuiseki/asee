@@ -65,6 +65,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.golden_review_workflow --name owner-golden-2026-03-15 --source /home/yuiseki/Workspaces/private/datasets/faces/owner_false_negative/2026/03/15/15 --source /home/yuiseki/Workspaces/private/datasets/faces/others/2026/03/15/16`
   - writes a self-contained review workspace into `private/datasets/faces/golden_review_workspaces/<name>/`
   - includes `assets/`, `manifest.jsonl`, `label_studio/tasks.json`, `label_studio/config.xml`, `launch_fiftyone.sh`, and `launch_label_studio.sh`
+  - fixed label semantics: `owner_positive = owner face image`, `guest_negative = guest face image`, `non_face_negative = non-face false detection image`, `uncertain = holdout`
   - intended workflow: inspect/filter in FiftyOne first, then apply final gold labels in Label Studio
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - captured face crops now write a sidecar `.json` with timestamp, score, label, face box, and per-frame counts so later relabeling/triage can use metadata instead of filenames alone.

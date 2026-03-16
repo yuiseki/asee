@@ -21,6 +21,7 @@ def test_build_label_studio_config_contains_expected_choices() -> None:
     assert "guest_negative" in config
     assert "non_face_negative" in config
     assert "uncertain" in config
+    assert "guest_negative = guest face image" in config
 
 
 def test_prepare_golden_review_workspace_writes_assets_and_review_files(
