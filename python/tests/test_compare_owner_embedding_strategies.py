@@ -111,20 +111,46 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
         "project3",
         [("owner_positive", "/tmp/p3-owner.jpg")],
     )
+    project4 = _write_export(
+        tmp_path,
+        "project4",
+        [
+            ("owner_positive", "/tmp/p4-owner.jpg"),
+            ("non_face_negative", "/tmp/p4-nonface.jpg"),
+        ],
+    )
+    project5 = _write_export(
+        tmp_path,
+        "project5",
+        [
+            ("owner_positive", "/tmp/p5-owner.jpg"),
+            ("guest_negative", "/tmp/p5-guest.jpg"),
+        ],
+    )
 
     bundle = build_review_bundle(
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        non_face_hard_negative_export=project4,
+        baseline_holdout_export=project5,
     )
 
     assert [sample.source_image.name for sample in bundle.hard_positive_glasses] == ["p1-owner.jpg"]
     assert [sample.source_image.name for sample in bundle.baseline_contacts] == ["p2-owner.jpg"]
     assert [sample.source_image.name for sample in bundle.baseline_makeup] == ["p3-owner.jpg"]
-    assert [sample.source_image.name for sample in bundle.guest_negative] == ["p1-guest.jpg"]
+    assert [sample.source_image.name for sample in bundle.non_face_owner_positives] == [
+        "p4-owner.jpg"
+    ]
+    assert [sample.source_image.name for sample in bundle.baseline_holdout] == ["p5-owner.jpg"]
+    assert [sample.source_image.name for sample in bundle.guest_negative] == [
+        "p1-guest.jpg",
+        "p5-guest.jpg",
+    ]
     assert [sample.source_image.name for sample in bundle.non_face_negative] == [
         "p1-nonface.jpg",
         "p2-nonface.jpg",
+        "p4-nonface.jpg",
     ]
 
 
@@ -154,6 +180,19 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         "project3",
         [("owner_positive", "/tmp/makeup-1.jpg")],
     )
+    project4 = _write_export(
+        tmp_path,
+        "project4",
+        [
+            ("owner_positive", "/tmp/nonface-owner-1.jpg"),
+            ("non_face_negative", "/tmp/nonface-3.jpg"),
+        ],
+    )
+    project5 = _write_export(
+        tmp_path,
+        "project5",
+        [("owner_positive", "/tmp/holdout-1.jpg")],
+    )
     owner_embedding_path = tmp_path / "owner_embedding.npy"
     np.save(
         owner_embedding_path,
@@ -164,9 +203,12 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         Path("/tmp/hard-2.jpg"): np.asarray([[0.40, 0.92, 0.0]], dtype=np.float32),
         Path("/tmp/base-1.jpg"): np.asarray([[0.95, 0.05, 0.0]], dtype=np.float32),
         Path("/tmp/makeup-1.jpg"): np.asarray([[0.93, 0.08, 0.0]], dtype=np.float32),
+        Path("/tmp/nonface-owner-1.jpg"): np.asarray([[0.91, 0.09, 0.0]], dtype=np.float32),
+        Path("/tmp/holdout-1.jpg"): np.asarray([[0.94, 0.06, 0.0]], dtype=np.float32),
         Path("/tmp/guest-1.jpg"): np.asarray([[-1.0, 0.0, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-1.jpg"): np.asarray([[0.0, 0.0, 1.0]], dtype=np.float32),
         Path("/tmp/nonface-2.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
+        Path("/tmp/nonface-3.jpg"): np.asarray([[0.0, 0.2, 0.98]], dtype=np.float32),
     }
 
     report = compare_owner_embedding_strategies(
@@ -174,6 +216,8 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        non_face_hard_negative_export=project4,
+        baseline_holdout_export=project5,
         snapshot_dir=tmp_path / "snapshots",
         overlay=_OverlayStub(),
         embedding_lookup=embedding_lookup,
@@ -183,6 +227,8 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
     assert report.append.hard_positive_glasses.owner_predictions == 2
     assert report.rebuild.hard_positive_glasses.owner_predictions == 2
     assert report.current.baseline_contacts.owner_predictions == 1
+    assert report.current.non_face_owner_positives.owner_predictions == 1
+    assert report.current.baseline_holdout.owner_predictions == 1
     assert report.append.guest_negative.owner_predictions == 0
     assert report.rebuild.non_face_negative.owner_predictions == 0
     assert report.append.added_embeddings == 1

@@ -43,6 +43,12 @@ DEFAULT_BASELINE_CONTACTS_BACKUP_ROOT = Path(
 DEFAULT_BASELINE_MAKEUP_BACKUP_ROOT = Path(
     "/home/yuiseki/Workspaces/private/datasets/faces/golden_review_backups/owner-baseline-makeup-v1"
 )
+DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT = Path(
+    "/home/yuiseki/Workspaces/private/datasets/faces/golden_review_backups/owner-non-face-hard-negatives-v1"
+)
+DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT = Path(
+    "/home/yuiseki/Workspaces/private/datasets/faces/golden_review_backups/owner-baseline-holdout-v1"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +65,8 @@ class ReviewBundle:
     hard_positive_glasses: tuple[ReviewedSample, ...]
     baseline_contacts: tuple[ReviewedSample, ...]
     baseline_makeup: tuple[ReviewedSample, ...]
+    non_face_owner_positives: tuple[ReviewedSample, ...]
+    baseline_holdout: tuple[ReviewedSample, ...]
     guest_negative: tuple[ReviewedSample, ...]
     non_face_negative: tuple[ReviewedSample, ...]
 
@@ -87,6 +95,8 @@ class StrategyEvaluationReport:
     hard_positive_glasses: DatasetEvaluation
     baseline_contacts: DatasetEvaluation
     baseline_makeup: DatasetEvaluation
+    non_face_owner_positives: DatasetEvaluation
+    baseline_holdout: DatasetEvaluation
     guest_negative: DatasetEvaluation
     non_face_negative: DatasetEvaluation
     negative_all: DatasetEvaluation
@@ -101,6 +111,8 @@ class StrategyComparisonReport:
     hard_positive_export: Path
     baseline_contacts_export: Path
     baseline_makeup_export: Path
+    non_face_hard_negative_export: Path | None
+    baseline_holdout_export: Path | None
     current: StrategyEvaluationReport
     append: StrategyEvaluationReport
     rebuild: StrategyEvaluationReport
@@ -127,6 +139,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--baseline-makeup-export",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "--non-face-hard-negative-export",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "--baseline-holdout-export",
         type=Path,
         default=None,
     )
@@ -226,6 +248,8 @@ def build_review_bundle(
     hard_positive_export: Path,
     baseline_contacts_export: Path,
     baseline_makeup_export: Path,
+    non_face_hard_negative_export: Path | None = None,
+    baseline_holdout_export: Path | None = None,
 ) -> ReviewBundle:
     hard_samples = load_review_samples(
         hard_positive_export,
@@ -239,6 +263,29 @@ def build_review_bundle(
         baseline_makeup_export,
         project_name="owner_baseline_makeup",
     )
+    non_face_hard_negative_samples = (
+        load_review_samples(
+            non_face_hard_negative_export,
+            project_name="owner_non_face_hard_negatives",
+        )
+        if non_face_hard_negative_export is not None
+        else ()
+    )
+    baseline_holdout_samples = (
+        load_review_samples(
+            baseline_holdout_export,
+            project_name="owner_baseline_holdout",
+        )
+        if baseline_holdout_export is not None
+        else ()
+    )
+    all_samples = (
+        *hard_samples,
+        *contacts_samples,
+        *makeup_samples,
+        *non_face_hard_negative_samples,
+        *baseline_holdout_samples,
+    )
     return ReviewBundle(
         hard_positive_glasses=unique_samples_by_path(
             tuple(sample for sample in hard_samples if sample.label == "owner_positive")
@@ -249,19 +296,25 @@ def build_review_bundle(
         baseline_makeup=unique_samples_by_path(
             tuple(sample for sample in makeup_samples if sample.label == "owner_positive")
         ),
-        guest_negative=unique_samples_by_path(
+        non_face_owner_positives=unique_samples_by_path(
             tuple(
                 sample
-                for sample in (*hard_samples, *contacts_samples, *makeup_samples)
-                if sample.label == "guest_negative"
+                for sample in non_face_hard_negative_samples
+                if sample.label == "owner_positive"
             )
         ),
-        non_face_negative=unique_samples_by_path(
+        baseline_holdout=unique_samples_by_path(
             tuple(
                 sample
-                for sample in (*hard_samples, *contacts_samples, *makeup_samples)
-                if sample.label == "non_face_negative"
+                for sample in baseline_holdout_samples
+                if sample.label == "owner_positive"
             )
+        ),
+        guest_negative=unique_samples_by_path(
+            tuple(sample for sample in all_samples if sample.label == "guest_negative")
+        ),
+        non_face_negative=unique_samples_by_path(
+            tuple(sample for sample in all_samples if sample.label == "non_face_negative")
         ),
     )
 
@@ -272,6 +325,8 @@ def compare_owner_embedding_strategies(
     hard_positive_export: Path,
     baseline_contacts_export: Path,
     baseline_makeup_export: Path,
+    non_face_hard_negative_export: Path | None = None,
+    baseline_holdout_export: Path | None = None,
     snapshot_dir: Path,
     negative_penalty: float = 3.0,
     max_selected: int | None = None,
@@ -290,6 +345,8 @@ def compare_owner_embedding_strategies(
         hard_positive_export=hard_positive_export,
         baseline_contacts_export=baseline_contacts_export,
         baseline_makeup_export=baseline_makeup_export,
+        non_face_hard_negative_export=non_face_hard_negative_export,
+        baseline_holdout_export=baseline_holdout_export,
     )
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     snapshot_path = snapshot_owner_embedding(
@@ -305,6 +362,8 @@ def compare_owner_embedding_strategies(
         samples=(
             *bundle.append_candidates,
             *bundle.rebuild_sources,
+            *bundle.non_face_owner_positives,
+            *bundle.baseline_holdout,
             *bundle.guest_negative,
             *bundle.non_face_negative,
         ),
@@ -338,6 +397,8 @@ def compare_owner_embedding_strategies(
         hard_positive_export=hard_positive_export,
         baseline_contacts_export=baseline_contacts_export,
         baseline_makeup_export=baseline_makeup_export,
+        non_face_hard_negative_export=non_face_hard_negative_export,
+        baseline_holdout_export=baseline_holdout_export,
         current=evaluate_strategy_report(
             owner_embeddings=current_embeddings,
             bundle=bundle,
@@ -509,6 +570,16 @@ def evaluate_strategy_report(
             sample_embeddings=sample_embeddings,
             classify_embedding=classifier,
         ),
+        non_face_owner_positives=evaluate_review_samples(
+            samples=bundle.non_face_owner_positives,
+            sample_embeddings=sample_embeddings,
+            classify_embedding=classifier,
+        ),
+        baseline_holdout=evaluate_review_samples(
+            samples=bundle.baseline_holdout,
+            sample_embeddings=sample_embeddings,
+            classify_embedding=classifier,
+        ),
         guest_negative=evaluate_review_samples(
             samples=bundle.guest_negative,
             sample_embeddings=sample_embeddings,
@@ -608,6 +679,8 @@ def format_strategy(name: str, report: StrategyEvaluationReport) -> list[str]:
         format_positive_evaluation("hard_positive_glasses", report.hard_positive_glasses),
         format_positive_evaluation("baseline_contacts", report.baseline_contacts),
         format_positive_evaluation("baseline_makeup", report.baseline_makeup),
+        format_positive_evaluation("non_face_owner_positives", report.non_face_owner_positives),
+        format_positive_evaluation("baseline_holdout", report.baseline_holdout),
         format_negative_evaluation("guest_negative", report.guest_negative),
         format_negative_evaluation("non_face_negative", report.non_face_negative),
         format_negative_evaluation("negative_all", report.negative_all),
@@ -636,11 +709,23 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline_makeup_export is not None
         else resolve_latest_export_json(DEFAULT_BASELINE_MAKEUP_BACKUP_ROOT)
     )
+    non_face_hard_negative_export = (
+        Path(args.non_face_hard_negative_export)
+        if args.non_face_hard_negative_export is not None
+        else resolve_latest_export_json(DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT)
+    )
+    baseline_holdout_export = (
+        Path(args.baseline_holdout_export)
+        if args.baseline_holdout_export is not None
+        else resolve_latest_export_json(DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT)
+    )
     report = compare_owner_embedding_strategies(
         owner_embedding_path=Path(args.owner_embedding_path),
         hard_positive_export=hard_positive_export,
         baseline_contacts_export=baseline_contacts_export,
         baseline_makeup_export=baseline_makeup_export,
+        non_face_hard_negative_export=non_face_hard_negative_export,
+        baseline_holdout_export=baseline_holdout_export,
         snapshot_dir=Path(args.snapshot_dir),
         negative_penalty=float(args.negative_penalty),
         max_selected=None if args.max_selected is None else int(args.max_selected),
@@ -650,6 +735,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"hard_positive_export={report.hard_positive_export}")
     print(f"baseline_contacts_export={report.baseline_contacts_export}")
     print(f"baseline_makeup_export={report.baseline_makeup_export}")
+    print(f"non_face_hard_negative_export={report.non_face_hard_negative_export}")
+    print(f"baseline_holdout_export={report.baseline_holdout_export}")
     for line in format_strategy("current", report.current):
         print(line)
     for line in format_strategy("append", report.append):

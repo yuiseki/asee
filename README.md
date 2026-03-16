@@ -48,14 +48,22 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - default mode is validation-only (`--apply` is required to overwrite the live owner embedding)
 - multi-project owner-embedding strategy comparison helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.compare_owner_embedding_strategies`
-  - compares `current` vs `append` vs `rebuild` against the latest Label Studio backups for hard-positive glasses, baseline contacts, and baseline makeup projects
+  - compares `current` vs `append` vs `rebuild` against the latest Label Studio backups for:
+    - `owner_hard_positive_glasses`
+    - `owner_baseline_contacts`
+    - `owner_baseline_makeup`
+    - `owner_non_face_hard_negatives`
+    - `owner_baseline_holdout`
   - `append` mines Project 1 hard positives into the existing bank; `rebuild` replaces the bank with all currently labeled `owner_positive` images
+  - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
+  - Project 5 `owner_positive` is treated as a holdout acceptance slice
   - all labeled `guest_negative` and `non_face_negative` images are used as acceptance negatives
   - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
 - owner-embedding experiment matrix runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_embedding_experiment_matrix`
-  - runs `candidate-source x strategy` experiments across the same three Label Studio projects
-  - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, and baseline makeup
+  - runs `candidate-source x strategy` experiments across the same labeled project family
+  - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, baseline makeup, and Project 4 owner-positive recoveries
+  - Project 5 holdout is evaluation-only and is never used as a source group
   - default strategies cover conservative/permissive greedy append, full append, and rebuild
   - writes per-experiment candidate banks plus `summary.json` into `private/datasets/faces/owner_embedding_snapshots/owner_embedding_experiment_matrix_<timestamp>/`
 - mixed SUBJECT session triage helper:

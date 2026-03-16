@@ -15,8 +15,10 @@ import numpy as np
 
 from .compare_owner_embedding_strategies import (
     DEFAULT_BASELINE_CONTACTS_BACKUP_ROOT,
+    DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT,
     DEFAULT_BASELINE_MAKEUP_BACKUP_ROOT,
     DEFAULT_HARD_POSITIVE_BACKUP_ROOT,
+    DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT,
     ReviewBundle,
     ReviewedSample,
     StrategyEvaluationReport,
@@ -67,6 +69,8 @@ class ExperimentResult:
     hard_positive_gain: int
     baseline_contacts_gain: int
     baseline_makeup_gain: int
+    non_face_owner_gain: int
+    baseline_holdout_gain: int
     guest_negative_delta: int
     non_face_negative_delta: int
     negative_all_delta: int
@@ -108,6 +112,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
     )
     parser.add_argument(
+        "--non-face-hard-negative-export",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "--baseline-holdout-export",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
         "--snapshot-dir",
         type=Path,
         default=DEFAULT_SNAPSHOT_DIR,
@@ -128,10 +142,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def build_default_source_groups(bundle: ReviewBundle) -> tuple[ExperimentSourceGroup, ...]:
-    project_groups = (
-        ("hard_positive_glasses", bundle.hard_positive_glasses),
-        ("baseline_contacts", bundle.baseline_contacts),
-        ("baseline_makeup", bundle.baseline_makeup),
+    project_groups = tuple(
+        (name, samples)
+        for name, samples in (
+            ("hard_positive_glasses", bundle.hard_positive_glasses),
+            ("baseline_contacts", bundle.baseline_contacts),
+            ("baseline_makeup", bundle.baseline_makeup),
+            ("non_face_owner_positives", bundle.non_face_owner_positives),
+        )
+        if samples
     )
     groups: list[ExperimentSourceGroup] = []
     for width in range(1, len(project_groups) + 1):
@@ -173,6 +192,8 @@ def run_owner_embedding_experiment_matrix(
     hard_positive_export: Path,
     baseline_contacts_export: Path,
     baseline_makeup_export: Path,
+    non_face_hard_negative_export: Path | None = None,
+    baseline_holdout_export: Path | None = None,
     snapshot_dir: Path,
     overlay: OverlayLike | None = None,
     embedding_lookup: dict[Path, EmbeddingArray] | None = None,
@@ -183,6 +204,8 @@ def run_owner_embedding_experiment_matrix(
         hard_positive_export=hard_positive_export,
         baseline_contacts_export=baseline_contacts_export,
         baseline_makeup_export=baseline_makeup_export,
+        non_face_hard_negative_export=non_face_hard_negative_export,
+        baseline_holdout_export=baseline_holdout_export,
     )
     if overlay is not None:
         active_overlay = overlay
@@ -198,6 +221,8 @@ def run_owner_embedding_experiment_matrix(
             *bundle.hard_positive_glasses,
             *bundle.baseline_contacts,
             *bundle.baseline_makeup,
+            *bundle.non_face_owner_positives,
+            *bundle.baseline_holdout,
             *bundle.guest_negative,
             *bundle.non_face_negative,
         ),
@@ -402,6 +427,16 @@ def evaluate_strategy_report_fast(
             sample_embeddings=sample_embeddings,
             owner_embeddings=owner_embeddings,
         ),
+        non_face_owner_positives=evaluate_review_samples_fast(
+            samples=bundle.non_face_owner_positives,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
+        baseline_holdout=evaluate_review_samples_fast(
+            samples=bundle.baseline_holdout,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
         guest_negative=evaluate_review_samples_fast(
             samples=bundle.guest_negative,
             sample_embeddings=sample_embeddings,
@@ -482,6 +517,10 @@ def build_experiment_result(
         - current.baseline_contacts.owner_predictions,
         baseline_makeup_gain=report.baseline_makeup.owner_predictions
         - current.baseline_makeup.owner_predictions,
+        non_face_owner_gain=report.non_face_owner_positives.owner_predictions
+        - current.non_face_owner_positives.owner_predictions,
+        baseline_holdout_gain=report.baseline_holdout.owner_predictions
+        - current.baseline_holdout.owner_predictions,
         guest_negative_delta=report.guest_negative.owner_predictions
         - current.guest_negative.owner_predictions,
         non_face_negative_delta=report.non_face_negative.owner_predictions
@@ -503,6 +542,8 @@ def rank_experiment_result(result: ExperimentResult) -> tuple[int, int, int, int
             result.hard_positive_gain
             + result.baseline_contacts_gain
             + result.baseline_makeup_gain
+            + result.non_face_owner_gain
+            + result.baseline_holdout_gain
         ),
         result.added_embeddings,
     )
@@ -516,6 +557,8 @@ def strategy_report_to_dict(report: StrategyEvaluationReport) -> dict[str, objec
         "hard_positive_glasses": dataset_evaluation_to_dict(report.hard_positive_glasses),
         "baseline_contacts": dataset_evaluation_to_dict(report.baseline_contacts),
         "baseline_makeup": dataset_evaluation_to_dict(report.baseline_makeup),
+        "non_face_owner_positives": dataset_evaluation_to_dict(report.non_face_owner_positives),
+        "baseline_holdout": dataset_evaluation_to_dict(report.baseline_holdout),
         "guest_negative": dataset_evaluation_to_dict(report.guest_negative),
         "non_face_negative": dataset_evaluation_to_dict(report.non_face_negative),
         "negative_all": dataset_evaluation_to_dict(report.negative_all),
@@ -538,6 +581,8 @@ def experiment_result_to_dict(result: ExperimentResult) -> dict[str, object]:
         "hard_positive_gain": result.hard_positive_gain,
         "baseline_contacts_gain": result.baseline_contacts_gain,
         "baseline_makeup_gain": result.baseline_makeup_gain,
+        "non_face_owner_gain": result.non_face_owner_gain,
+        "baseline_holdout_gain": result.baseline_holdout_gain,
         "guest_negative_delta": result.guest_negative_delta,
         "non_face_negative_delta": result.non_face_negative_delta,
         "negative_all_delta": result.negative_all_delta,
@@ -563,6 +608,8 @@ def format_experiment_result(result: ExperimentResult) -> list[str]:
             f"added={result.added_embeddings} hard_gain={result.hard_positive_gain} "
             f"contacts_gain={result.baseline_contacts_gain} "
             f"makeup_gain={result.baseline_makeup_gain} "
+            f"nonface_owner_gain={result.non_face_owner_gain} "
+            f"holdout_gain={result.baseline_holdout_gain} "
             f"guest_delta={result.guest_negative_delta} "
             f"nonface_delta={result.non_face_negative_delta} "
             f"negative_all_delta={result.negative_all_delta}"
@@ -570,6 +617,11 @@ def format_experiment_result(result: ExperimentResult) -> list[str]:
         format_positive_evaluation("hard_positive_glasses", result.report.hard_positive_glasses),
         format_positive_evaluation("baseline_contacts", result.report.baseline_contacts),
         format_positive_evaluation("baseline_makeup", result.report.baseline_makeup),
+        format_positive_evaluation(
+            "non_face_owner_positives",
+            result.report.non_face_owner_positives,
+        ),
+        format_positive_evaluation("baseline_holdout", result.report.baseline_holdout),
         format_negative_evaluation("guest_negative", result.report.guest_negative),
         format_negative_evaluation("non_face_negative", result.report.non_face_negative),
         format_negative_evaluation("negative_all", result.report.negative_all),
@@ -593,12 +645,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline_makeup_export is not None
         else resolve_latest_export_json(DEFAULT_BASELINE_MAKEUP_BACKUP_ROOT)
     )
+    non_face_hard_negative_export = (
+        Path(args.non_face_hard_negative_export)
+        if args.non_face_hard_negative_export is not None
+        else resolve_latest_export_json(DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT)
+    )
+    baseline_holdout_export = (
+        Path(args.baseline_holdout_export)
+        if args.baseline_holdout_export is not None
+        else resolve_latest_export_json(DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT)
+    )
     penalties = tuple(args.greedy_penalty) if args.greedy_penalty else (3.0, 1.5)
     report = run_owner_embedding_experiment_matrix(
         owner_embedding_path=Path(args.owner_embedding_path),
         hard_positive_export=hard_positive_export,
         baseline_contacts_export=baseline_contacts_export,
         baseline_makeup_export=baseline_makeup_export,
+        non_face_hard_negative_export=non_face_hard_negative_export,
+        baseline_holdout_export=baseline_holdout_export,
         snapshot_dir=Path(args.snapshot_dir),
         strategies=build_default_strategies(
             max_selected=None if args.max_selected is None else int(args.max_selected),
@@ -613,6 +677,13 @@ def main(argv: list[str] | None = None) -> int:
     print(format_positive_evaluation("hard_positive_glasses", report.current.hard_positive_glasses))
     print(format_positive_evaluation("baseline_contacts", report.current.baseline_contacts))
     print(format_positive_evaluation("baseline_makeup", report.current.baseline_makeup))
+    print(
+        format_positive_evaluation(
+            "non_face_owner_positives",
+            report.current.non_face_owner_positives,
+        )
+    )
+    print(format_positive_evaluation("baseline_holdout", report.current.baseline_holdout))
     print(format_negative_evaluation("guest_negative", report.current.guest_negative))
     print(format_negative_evaluation("non_face_negative", report.current.non_face_negative))
     print(format_negative_evaluation("negative_all", report.current.negative_all))

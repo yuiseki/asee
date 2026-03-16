@@ -46,17 +46,23 @@ cd ..
     - `owner_hard_positive_glasses`
     - `owner_baseline_contacts`
     - `owner_baseline_makeup`
+    - `owner_non_face_hard_negatives`
+    - `owner_baseline_holdout`
   - `append` only mines Project 1 hard positives into the existing bank
   - `rebuild` creates a fresh bank from all currently labeled `owner_positive` images
+  - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
+  - Project 5 `owner_positive` is treated as a holdout acceptance slice
   - negatives are evaluated from every labeled `guest_negative` and `non_face_negative`
   - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
 - owner-embedding experiment matrix runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_embedding_experiment_matrix`
-  - runs `candidate-source x strategy` experiments over the same three Label Studio projects
+  - runs `candidate-source x strategy` experiments over the same labeled project family
   - default source groups are every non-empty combination of:
     - `hard_positive_glasses`
     - `baseline_contacts`
     - `baseline_makeup`
+    - `non_face_owner_positives`
+  - `baseline_holdout` is evaluation-only and is not used as a source group
   - default strategies are:
     - `append_greedy_p3.0`
     - `append_greedy_p1.5`
