@@ -46,6 +46,12 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - offline owner-embedding retrain/validation helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.retrain_owner_embedding --negative-validation-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - default mode is validation-only (`--apply` is required to overwrite the live owner embedding)
+- multi-project owner-embedding strategy comparison helper:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.compare_owner_embedding_strategies`
+  - compares `current` vs `append` vs `rebuild` against the latest Label Studio backups for hard-positive glasses, baseline contacts, and baseline makeup projects
+  - `append` mines Project 1 hard positives into the existing bank; `rebuild` replaces the bank with all currently labeled `owner_positive` images
+  - all labeled `guest_negative` and `non_face_negative` images are used as acceptance negatives
+  - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
 - mixed SUBJECT session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
