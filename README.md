@@ -52,6 +52,12 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - `append` mines Project 1 hard positives into the existing bank; `rebuild` replaces the bank with all currently labeled `owner_positive` images
   - all labeled `guest_negative` and `non_face_negative` images are used as acceptance negatives
   - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
+- owner-embedding experiment matrix runner:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_embedding_experiment_matrix`
+  - runs `candidate-source x strategy` experiments across the same three Label Studio projects
+  - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, and baseline makeup
+  - default strategies cover conservative/permissive greedy append, full append, and rebuild
+  - writes per-experiment candidate banks plus `summary.json` into `private/datasets/faces/owner_embedding_snapshots/owner_embedding_experiment_matrix_<timestamp>/`
 - mixed SUBJECT session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
