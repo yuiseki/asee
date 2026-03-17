@@ -54,9 +54,11 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
     - `owner_baseline_makeup`
     - `owner_non_face_hard_negatives`
     - `owner_baseline_holdout`
+    - `owner_dark_room_morning`
   - `append` mines Project 1 hard positives into the existing bank; `rebuild` replaces the bank with all currently labeled `owner_positive` images
   - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
   - Project 5 `owner_positive` is treated as a holdout acceptance slice
+  - Project 6 `owner_positive` is treated as a dark-room morning eval slice
   - weakly supervised baseline datasets are also read by default:
     - `private/datasets/faces/owner_baseline_non_makeup/2026-03-17_10-00_to_15-59`
     - `private/datasets/faces/owner_baseline_makeup/2026-03-17_16-00_to_17-20`
@@ -66,7 +68,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 - owner-embedding experiment matrix runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_embedding_experiment_matrix`
   - runs `candidate-source x strategy` experiments across the same labeled project family
-  - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, baseline makeup, and Project 4 owner-positive recoveries
+  - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, baseline makeup, dark-room morning, and Project 4 owner-positive recoveries
     plus weak non-makeup / weak makeup false-negative slices
   - Project 5 holdout is evaluation-only and is never used as a source group
   - default strategies cover conservative/permissive greedy append, full append, and rebuild

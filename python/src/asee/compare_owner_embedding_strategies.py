@@ -49,6 +49,9 @@ DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT = Path(
 DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT = Path(
     "/home/yuiseki/Workspaces/private/datasets/faces/golden_review_backups/owner-baseline-holdout-v1"
 )
+DEFAULT_DARK_ROOM_MORNING_BACKUP_ROOT = Path(
+    "/home/yuiseki/Workspaces/private/datasets/faces/golden_review_backups/owner-dark-room-morning-v1"
+)
 DEFAULT_WEAK_BASELINE_NON_MAKEUP_ROOT = Path(
     "/home/yuiseki/Workspaces/private/datasets/faces/owner_baseline_non_makeup/2026-03-17_10-00_to_15-59"
 )
@@ -73,6 +76,7 @@ class ReviewBundle:
     baseline_makeup: tuple[ReviewedSample, ...]
     non_face_owner_positives: tuple[ReviewedSample, ...]
     baseline_holdout: tuple[ReviewedSample, ...]
+    dark_room_morning: tuple[ReviewedSample, ...]
     weak_non_makeup_owner_raw: tuple[ReviewedSample, ...]
     weak_non_makeup_false_negative: tuple[ReviewedSample, ...]
     weak_makeup_owner_raw: tuple[ReviewedSample, ...]
@@ -114,6 +118,7 @@ class StrategyEvaluationReport:
     baseline_makeup: DatasetEvaluation
     non_face_owner_positives: DatasetEvaluation
     baseline_holdout: DatasetEvaluation
+    dark_room_morning: DatasetEvaluation
     weak_non_makeup_owner_raw: DatasetEvaluation
     weak_non_makeup_false_negative: DatasetEvaluation
     weak_makeup_owner_raw: DatasetEvaluation
@@ -134,6 +139,7 @@ class StrategyComparisonReport:
     baseline_makeup_export: Path
     non_face_hard_negative_export: Path | None
     baseline_holdout_export: Path | None
+    dark_room_morning_export: Path | None
     weak_baseline_non_makeup_root: Path | None
     weak_baseline_makeup_root: Path | None
     current: StrategyEvaluationReport
@@ -172,6 +178,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--baseline-holdout-export",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "--dark-room-morning-export",
         type=Path,
         default=None,
     )
@@ -306,6 +317,7 @@ def build_review_bundle(
     baseline_makeup_export: Path,
     non_face_hard_negative_export: Path | None = None,
     baseline_holdout_export: Path | None = None,
+    dark_room_morning_export: Path | None = None,
     weak_baseline_non_makeup_root: Path | None = None,
     weak_baseline_makeup_root: Path | None = None,
 ) -> ReviewBundle:
@@ -335,6 +347,14 @@ def build_review_bundle(
             project_name="owner_baseline_holdout",
         )
         if baseline_holdout_export is not None
+        else ()
+    )
+    dark_room_morning_samples = (
+        load_review_samples(
+            dark_room_morning_export,
+            project_name="owner_dark_room_morning",
+        )
+        if dark_room_morning_export is not None
         else ()
     )
     weak_non_makeup_owner_raw = (
@@ -379,6 +399,7 @@ def build_review_bundle(
         *makeup_samples,
         *non_face_hard_negative_samples,
         *baseline_holdout_samples,
+        *dark_room_morning_samples,
     )
     return ReviewBundle(
         hard_positive_glasses=unique_samples_by_path(
@@ -404,6 +425,13 @@ def build_review_bundle(
                 if sample.label == "owner_positive"
             )
         ),
+        dark_room_morning=unique_samples_by_path(
+            tuple(
+                sample
+                for sample in dark_room_morning_samples
+                if sample.label == "owner_positive"
+            )
+        ),
         weak_non_makeup_owner_raw=unique_samples_by_path(weak_non_makeup_owner_raw),
         weak_non_makeup_false_negative=unique_samples_by_path(weak_non_makeup_false_negative),
         weak_makeup_owner_raw=unique_samples_by_path(weak_makeup_owner_raw),
@@ -425,6 +453,7 @@ def compare_owner_embedding_strategies(
     baseline_makeup_export: Path,
     non_face_hard_negative_export: Path | None = None,
     baseline_holdout_export: Path | None = None,
+    dark_room_morning_export: Path | None = None,
     weak_baseline_non_makeup_root: Path | None = None,
     weak_baseline_makeup_root: Path | None = None,
     snapshot_dir: Path,
@@ -447,6 +476,7 @@ def compare_owner_embedding_strategies(
         baseline_makeup_export=baseline_makeup_export,
         non_face_hard_negative_export=non_face_hard_negative_export,
         baseline_holdout_export=baseline_holdout_export,
+        dark_room_morning_export=dark_room_morning_export,
         weak_baseline_non_makeup_root=weak_baseline_non_makeup_root,
         weak_baseline_makeup_root=weak_baseline_makeup_root,
     )
@@ -466,6 +496,7 @@ def compare_owner_embedding_strategies(
             *bundle.rebuild_sources,
             *bundle.non_face_owner_positives,
             *bundle.baseline_holdout,
+            *bundle.dark_room_morning,
             *bundle.weak_non_makeup_owner_raw,
             *bundle.weak_non_makeup_false_negative,
             *bundle.weak_makeup_owner_raw,
@@ -505,6 +536,7 @@ def compare_owner_embedding_strategies(
         baseline_makeup_export=baseline_makeup_export,
         non_face_hard_negative_export=non_face_hard_negative_export,
         baseline_holdout_export=baseline_holdout_export,
+        dark_room_morning_export=dark_room_morning_export,
         weak_baseline_non_makeup_root=weak_baseline_non_makeup_root,
         weak_baseline_makeup_root=weak_baseline_makeup_root,
         current=evaluate_strategy_report(
@@ -688,6 +720,11 @@ def evaluate_strategy_report(
             sample_embeddings=sample_embeddings,
             classify_embedding=classifier,
         ),
+        dark_room_morning=evaluate_review_samples(
+            samples=bundle.dark_room_morning,
+            sample_embeddings=sample_embeddings,
+            classify_embedding=classifier,
+        ),
         weak_non_makeup_owner_raw=evaluate_review_samples(
             samples=bundle.weak_non_makeup_owner_raw,
             sample_embeddings=sample_embeddings,
@@ -809,6 +846,7 @@ def format_strategy(name: str, report: StrategyEvaluationReport) -> list[str]:
         format_positive_evaluation("baseline_makeup", report.baseline_makeup),
         format_positive_evaluation("non_face_owner_positives", report.non_face_owner_positives),
         format_positive_evaluation("baseline_holdout", report.baseline_holdout),
+        format_positive_evaluation("dark_room_morning", report.dark_room_morning),
         format_positive_evaluation("weak_non_makeup_owner_raw", report.weak_non_makeup_owner_raw),
         format_positive_evaluation(
             "weak_non_makeup_false_negative",
@@ -857,6 +895,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline_holdout_export is not None
         else resolve_latest_export_json(DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT)
     )
+    dark_room_morning_export = (
+        Path(args.dark_room_morning_export)
+        if args.dark_room_morning_export is not None
+        else resolve_latest_export_json(DEFAULT_DARK_ROOM_MORNING_BACKUP_ROOT)
+    )
     weak_baseline_non_makeup_root = (
         Path(args.weak_baseline_non_makeup_root)
         if args.weak_baseline_non_makeup_root is not None
@@ -874,6 +917,7 @@ def main(argv: list[str] | None = None) -> int:
         baseline_makeup_export=baseline_makeup_export,
         non_face_hard_negative_export=non_face_hard_negative_export,
         baseline_holdout_export=baseline_holdout_export,
+        dark_room_morning_export=dark_room_morning_export,
         weak_baseline_non_makeup_root=weak_baseline_non_makeup_root,
         weak_baseline_makeup_root=weak_baseline_makeup_root,
         snapshot_dir=Path(args.snapshot_dir),
@@ -887,6 +931,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"baseline_makeup_export={report.baseline_makeup_export}")
     print(f"non_face_hard_negative_export={report.non_face_hard_negative_export}")
     print(f"baseline_holdout_export={report.baseline_holdout_export}")
+    print(f"dark_room_morning_export={report.dark_room_morning_export}")
     print(f"weak_baseline_non_makeup_root={report.weak_baseline_non_makeup_root}")
     print(f"weak_baseline_makeup_root={report.weak_baseline_makeup_root}")
     for line in format_strategy("current", report.current):

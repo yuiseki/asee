@@ -48,10 +48,12 @@ cd ..
     - `owner_baseline_makeup`
     - `owner_non_face_hard_negatives`
     - `owner_baseline_holdout`
+    - `owner_dark_room_morning`
   - `append` only mines Project 1 hard positives into the existing bank
   - `rebuild` creates a fresh bank from all currently labeled `owner_positive` images
   - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
   - Project 5 `owner_positive` is treated as a holdout acceptance slice
+  - Project 6 `owner_positive` is treated as a dark-room morning eval slice
   - weakly supervised datasets are also loaded by default:
     - `private/datasets/faces/owner_baseline_non_makeup/2026-03-17_10-00_to_15-59`
     - `private/datasets/faces/owner_baseline_makeup/2026-03-17_16-00_to_17-20`
@@ -67,6 +69,7 @@ cd ..
     - `hard_positive_glasses`
     - `baseline_contacts`
     - `baseline_makeup`
+    - `dark_room_morning`
     - `non_face_owner_positives`
     - `weak_non_makeup_false_negative`
     - `weak_makeup_false_negative`

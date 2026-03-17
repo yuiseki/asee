@@ -127,6 +127,14 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
             ("guest_negative", "/tmp/p5-guest.jpg"),
         ],
     )
+    project6 = _write_export(
+        tmp_path,
+        "project6",
+        [
+            ("owner_positive", "/tmp/p6-owner.jpg"),
+            ("non_face_negative", "/tmp/p6-nonface.jpg"),
+        ],
+    )
 
     bundle = build_review_bundle(
         hard_positive_export=project1,
@@ -134,6 +142,7 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
         baseline_makeup_export=project3,
         non_face_hard_negative_export=project4,
         baseline_holdout_export=project5,
+        dark_room_morning_export=project6,
     )
 
     assert [sample.source_image.name for sample in bundle.hard_positive_glasses] == ["p1-owner.jpg"]
@@ -143,6 +152,7 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
         "p4-owner.jpg"
     ]
     assert [sample.source_image.name for sample in bundle.baseline_holdout] == ["p5-owner.jpg"]
+    assert [sample.source_image.name for sample in bundle.dark_room_morning] == ["p6-owner.jpg"]
     assert [sample.source_image.name for sample in bundle.guest_negative] == [
         "p1-guest.jpg",
         "p5-guest.jpg",
@@ -151,6 +161,7 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
         "p1-nonface.jpg",
         "p2-nonface.jpg",
         "p4-nonface.jpg",
+        "p6-nonface.jpg",
     ]
     assert bundle.weak_non_makeup_owner_raw == ()
     assert bundle.weak_non_makeup_false_negative == ()
@@ -173,6 +184,11 @@ def test_build_review_bundle_loads_weak_capture_datasets(tmp_path: Path) -> None
         tmp_path,
         "project3",
         [("owner_positive", "/tmp/p3-owner.jpg")],
+    )
+    project6 = _write_export(
+        tmp_path,
+        "project6",
+        [("owner_positive", "/tmp/p6-owner.jpg")],
     )
     non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
     makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
@@ -201,6 +217,7 @@ def test_build_review_bundle_loads_weak_capture_datasets(tmp_path: Path) -> None
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        dark_room_morning_export=project6,
         weak_baseline_non_makeup_root=non_makeup_root,
         weak_baseline_makeup_root=makeup_root,
     )
@@ -217,6 +234,7 @@ def test_build_review_bundle_loads_weak_capture_datasets(tmp_path: Path) -> None
     assert [sample.source_image.name for sample in bundle.weak_makeup_false_negative] == [
         "m-fn.jpg"
     ]
+    assert [sample.source_image.name for sample in bundle.dark_room_morning] == ["p6-owner.jpg"]
 
 
 def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
@@ -258,6 +276,14 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         "project5",
         [("owner_positive", "/tmp/holdout-1.jpg")],
     )
+    project6 = _write_export(
+        tmp_path,
+        "project6",
+        [
+            ("owner_positive", "/tmp/dark-1.jpg"),
+            ("non_face_negative", "/tmp/dark-nonface.jpg"),
+        ],
+    )
     non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
     makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
     for dataset_root, image_name in (
@@ -291,6 +317,7 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         Path("/tmp/makeup-1.jpg"): np.asarray([[0.93, 0.08, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-owner-1.jpg"): np.asarray([[0.91, 0.09, 0.0]], dtype=np.float32),
         Path("/tmp/holdout-1.jpg"): np.asarray([[0.94, 0.06, 0.0]], dtype=np.float32),
+        Path("/tmp/dark-1.jpg"): np.asarray([[0.36, 0.93, 0.0]], dtype=np.float32),
         non_makeup_root / "owner_raw" / "10" / "00" / "nm-owner.jpg": np.asarray(
             [[0.96, 0.04, 0.0]], dtype=np.float32
         ),
@@ -307,6 +334,7 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         Path("/tmp/nonface-1.jpg"): np.asarray([[0.0, 0.0, 1.0]], dtype=np.float32),
         Path("/tmp/nonface-2.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-3.jpg"): np.asarray([[0.0, 0.2, 0.98]], dtype=np.float32),
+        Path("/tmp/dark-nonface.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
     }
 
     report = compare_owner_embedding_strategies(
@@ -316,6 +344,7 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         baseline_makeup_export=project3,
         non_face_hard_negative_export=project4,
         baseline_holdout_export=project5,
+        dark_room_morning_export=project6,
         weak_baseline_non_makeup_root=non_makeup_root,
         weak_baseline_makeup_root=makeup_root,
         snapshot_dir=tmp_path / "snapshots",
@@ -329,6 +358,7 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
     assert report.current.baseline_contacts.owner_predictions == 1
     assert report.current.non_face_owner_positives.owner_predictions == 1
     assert report.current.baseline_holdout.owner_predictions == 1
+    assert report.current.dark_room_morning.owner_predictions == 0
     assert report.current.weak_non_makeup_owner_raw.owner_predictions == 1
     assert report.current.weak_makeup_owner_raw.owner_predictions == 1
     assert report.current.weak_non_makeup_false_negative.owner_predictions == 0

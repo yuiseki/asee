@@ -48,10 +48,12 @@ def test_build_default_source_groups_generates_all_non_empty_project_combination
     project1 = _write_export(tmp_path, "project1", [("owner_positive", "/tmp/p1-owner.jpg")])
     project2 = _write_export(tmp_path, "project2", [("owner_positive", "/tmp/p2-owner.jpg")])
     project3 = _write_export(tmp_path, "project3", [("owner_positive", "/tmp/p3-owner.jpg")])
+    project6 = _write_export(tmp_path, "project6", [("owner_positive", "/tmp/p6-owner.jpg")])
     bundle = build_review_bundle(
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        dark_room_morning_export=project6,
     )
 
     groups = build_default_source_groups(bundle)
@@ -60,10 +62,18 @@ def test_build_default_source_groups_generates_all_non_empty_project_combination
         "hard_positive_glasses",
         "baseline_contacts",
         "baseline_makeup",
+        "dark_room_morning",
         "hard_positive_glasses+baseline_contacts",
         "hard_positive_glasses+baseline_makeup",
+        "hard_positive_glasses+dark_room_morning",
         "baseline_contacts+baseline_makeup",
+        "baseline_contacts+dark_room_morning",
+        "baseline_makeup+dark_room_morning",
         "hard_positive_glasses+baseline_contacts+baseline_makeup",
+        "hard_positive_glasses+baseline_contacts+dark_room_morning",
+        "hard_positive_glasses+baseline_makeup+dark_room_morning",
+        "baseline_contacts+baseline_makeup+dark_room_morning",
+        "hard_positive_glasses+baseline_contacts+baseline_makeup+dark_room_morning",
     ]
 
 
@@ -73,6 +83,7 @@ def test_build_default_source_groups_includes_weak_false_negative_sets(
     project1 = _write_export(tmp_path, "project1", [("owner_positive", "/tmp/p1-owner.jpg")])
     project2 = _write_export(tmp_path, "project2", [("owner_positive", "/tmp/p2-owner.jpg")])
     project3 = _write_export(tmp_path, "project3", [("owner_positive", "/tmp/p3-owner.jpg")])
+    project6 = _write_export(tmp_path, "project6", [("owner_positive", "/tmp/p6-owner.jpg")])
     non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
     makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
     for dataset_root, image_name in (
@@ -96,6 +107,7 @@ def test_build_default_source_groups_includes_weak_false_negative_sets(
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        dark_room_morning_export=project6,
         weak_baseline_non_makeup_root=non_makeup_root,
         weak_baseline_makeup_root=makeup_root,
     )
@@ -103,6 +115,7 @@ def test_build_default_source_groups_includes_weak_false_negative_sets(
     groups = build_default_source_groups(bundle)
 
     keys = [group.key for group in groups]
+    assert "dark_room_morning" in keys
     assert "weak_non_makeup_false_negative" in keys
     assert "weak_makeup_false_negative" in keys
 
@@ -132,6 +145,14 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
         tmp_path,
         "project3",
         [("owner_positive", "/tmp/makeup-1.jpg")],
+    )
+    project6 = _write_export(
+        tmp_path,
+        "project6",
+        [
+            ("owner_positive", "/tmp/dark-1.jpg"),
+            ("non_face_negative", "/tmp/dark-nonface.jpg"),
+        ],
     )
     non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
     makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
@@ -164,6 +185,7 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
         Path("/tmp/hard-2.jpg"): np.asarray([[0.40, 0.92, 0.0]], dtype=np.float32),
         Path("/tmp/base-1.jpg"): np.asarray([[0.95, 0.05, 0.0]], dtype=np.float32),
         Path("/tmp/makeup-1.jpg"): np.asarray([[0.93, 0.08, 0.0]], dtype=np.float32),
+        Path("/tmp/dark-1.jpg"): np.asarray([[0.34, 0.94, 0.0]], dtype=np.float32),
         non_makeup_root / "owner_raw" / "10" / "00" / "nm-owner.jpg": np.asarray(
             [[0.96, 0.04, 0.0]], dtype=np.float32
         ),
@@ -179,6 +201,7 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
         Path("/tmp/guest-1.jpg"): np.asarray([[-1.0, 0.0, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-1.jpg"): np.asarray([[0.0, 0.0, 1.0]], dtype=np.float32),
         Path("/tmp/nonface-2.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
+        Path("/tmp/dark-nonface.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
     }
 
     report = run_owner_embedding_experiment_matrix(
@@ -186,6 +209,7 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
         hard_positive_export=project1,
         baseline_contacts_export=project2,
         baseline_makeup_export=project3,
+        dark_room_morning_export=project6,
         weak_baseline_non_makeup_root=non_makeup_root,
         weak_baseline_makeup_root=makeup_root,
         snapshot_dir=tmp_path / "snapshots",
@@ -196,6 +220,7 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
                     hard_positive_export=project1,
                     baseline_contacts_export=project2,
                     baseline_makeup_export=project3,
+                    dark_room_morning_export=project6,
                 ).hard_positive_glasses,
             ),
             ExperimentSourceGroup(
@@ -204,9 +229,21 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
                     hard_positive_export=project1,
                     baseline_contacts_export=project2,
                     baseline_makeup_export=project3,
+                    dark_room_morning_export=project6,
                     weak_baseline_non_makeup_root=non_makeup_root,
                     weak_baseline_makeup_root=makeup_root,
                 ).rebuild_sources,
+            ),
+            ExperimentSourceGroup(
+                key="dark_room_morning",
+                samples=build_review_bundle(
+                    hard_positive_export=project1,
+                    baseline_contacts_export=project2,
+                    baseline_makeup_export=project3,
+                    dark_room_morning_export=project6,
+                    weak_baseline_non_makeup_root=non_makeup_root,
+                    weak_baseline_makeup_root=makeup_root,
+                ).dark_room_morning,
             ),
             ExperimentSourceGroup(
                 key="weak_makeup_false_negative",
@@ -214,6 +251,7 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
                     hard_positive_export=project1,
                     baseline_contacts_export=project2,
                     baseline_makeup_export=project3,
+                    dark_room_morning_export=project6,
                     weak_baseline_non_makeup_root=non_makeup_root,
                     weak_baseline_makeup_root=makeup_root,
                 ).weak_makeup_false_negative,
@@ -232,10 +270,13 @@ def test_run_owner_embedding_experiment_matrix_reports_multiple_strategies(
         ("hard_positive_glasses", "rebuild"),
         ("all_owner_positive", "append_greedy"),
         ("all_owner_positive", "rebuild"),
+        ("dark_room_morning", "append_greedy"),
+        ("dark_room_morning", "rebuild"),
         ("weak_makeup_false_negative", "append_greedy"),
         ("weak_makeup_false_negative", "rebuild"),
     }
     assert report.current.hard_positive_glasses.owner_predictions == 0
+    assert report.current.dark_room_morning.owner_predictions == 0
     assert report.current.weak_non_makeup_owner_raw.owner_predictions == 1
     assert report.current.weak_makeup_false_negative.owner_predictions == 0
     append_result = next(
