@@ -106,3 +106,33 @@ def test_switchbot_room_context_provider_uses_cache_within_ttl() -> None:
 
     assert first == second
     assert len(calls) == 1
+
+
+def test_switchbot_room_context_provider_backs_off_after_failure() -> None:
+    calls: list[list[str]] = []
+    current_time = {"value": 20.0}
+
+    def runner(cmd: list[str]) -> SimpleNamespace:
+        calls.append(list(cmd))
+        return SimpleNamespace(returncode=1, stdout="", stderr="Too Many Requests")
+
+    provider = SwitchBotRoomContextProvider(
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name=None,
+        ttl_sec=60.0,
+        failure_ttl_sec=120.0,
+        command_runner=runner,
+        monotonic=lambda: current_time["value"],
+        now_provider=lambda: datetime(2026, 3, 17, 6, 2, 0),
+    )
+
+    first = provider()
+    current_time["value"] = 40.0
+    second = provider()
+    current_time["value"] = 141.0
+    third = provider()
+
+    assert first is None
+    assert second is None
+    assert third is None
+    assert len(calls) == 2

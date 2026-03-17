@@ -287,8 +287,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--room-context-ttl-sec",
         type=float,
-        default=5.0,
-        help="SwitchBot room context のキャッシュ TTL（秒）",
+        default=60.0,
+        help="SwitchBot room context の成功時キャッシュ TTL（秒）。失敗時は追加 backoff が入る",
     )
     parser.add_argument(
         "--allow-live-camera",

@@ -35,7 +35,8 @@ class SwitchBotRoomContextProvider:
         *,
         motion_sensor_name: str | None,
         meter_name: str | None,
-        ttl_sec: float = 5.0,
+        ttl_sec: float = 60.0,
+        failure_ttl_sec: float = 120.0,
         command_runner: CommandRunner | None = None,
         monotonic: Callable[[], float] | None = None,
         now_provider: Callable[[], datetime] | None = None,
@@ -43,17 +44,22 @@ class SwitchBotRoomContextProvider:
         self._motion_sensor_name = _normalize_device_name(motion_sensor_name)
         self._meter_name = _normalize_device_name(meter_name)
         self._ttl_sec = max(0.0, float(ttl_sec))
+        self._failure_ttl_sec = max(0.0, float(failure_ttl_sec))
         self._command_runner = command_runner or _default_command_runner
         self._monotonic = monotonic or time.monotonic
         self._now_provider = now_provider or datetime.now
         self._cached_payload: RoomContextPayload | None = None
         self._cached_at: float | None = None
+        self._failure_cached_at: float | None = None
 
     def __call__(self) -> RoomContextPayload | None:
         if self._motion_sensor_name is None and self._meter_name is None:
             return None
 
         now_monotonic = self._monotonic()
+        if self._failure_cached_at is not None:
+            if now_monotonic - self._failure_cached_at < self._failure_ttl_sec:
+                return self._cached_payload
         if self._cached_payload is not None and self._cached_at is not None:
             if now_monotonic - self._cached_at < self._ttl_sec:
                 return self._cached_payload
@@ -62,7 +68,9 @@ class SwitchBotRoomContextProvider:
         if payload is not None:
             self._cached_payload = payload
             self._cached_at = now_monotonic
+            self._failure_cached_at = None
             return payload
+        self._failure_cached_at = now_monotonic
         return self._cached_payload
 
     def _collect_payload(self) -> RoomContextPayload | None:
