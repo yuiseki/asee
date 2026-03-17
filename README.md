@@ -89,6 +89,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - intended workflow: inspect/filter in FiftyOne first, then apply final gold labels in Label Studio
 - guest-time face collection now treats both OWNER-labeled and SUBJECT-labeled crops as worth keeping, using a relaxed `10s` minimum interval and large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative cases are not dropped early.
 - captured face crops now write a sidecar `.json` with timestamp, score, label, face box, and per-frame counts so later relabeling/triage can use metadata instead of filenames alone.
+- when available, the same sidecar also records cached SwitchBot room context (`moveDetected`, `brightness`, temperature, humidity), and sensor-fetch failures stay best-effort so face persistence itself does not break.
 - The official Electron window caption is `ASEE Viewer`.
 - viewer startup now builds once up front, then runs Electron through a lightweight supervisor so an unexpected viewer exit can be restarted without bouncing the backend.
 - the viewer supervisor now reapplies the default left-bottom KWin layout after each viewer launch, so a respawned Electron window does not drift back to the desktop center.

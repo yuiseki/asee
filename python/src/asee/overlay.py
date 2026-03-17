@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -40,6 +41,7 @@ GUEST_CAPTURE_MAX_DISK_MB = 51_200
 
 type FrameArray = npt.NDArray[np.uint8]
 type EmbeddingArray = npt.NDArray[np.float32]
+type RoomContextProvider = Callable[[], dict[str, Any] | None]
 
 
 def _select_dnn_backend() -> tuple[int, int]:
@@ -104,6 +106,7 @@ class GodModeOverlay:
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
         detection_backend: str = "opencv",
+        room_context_provider: RoomContextProvider | None = None,
     ) -> None:
         self.width = width
         self.height = height
@@ -123,6 +126,7 @@ class GodModeOverlay:
         self._haar = self._load_haar()
         self._tracker = FaceTracker(alpha=0.4, max_lost_frames=2, min_hits=3)
         self._yunet_pipeline: YunetDetectionPipeline | None = None
+        self._room_context_provider = room_context_provider
 
         self._face_capture_writer = (
             FaceCaptureWriter(
@@ -456,6 +460,14 @@ class GodModeOverlay:
         }
         if metadata:
             payload.update(metadata)
+        if self._room_context_provider is not None and "roomContext" not in payload:
+            try:
+                room_context = self._room_context_provider()
+            except Exception as error:
+                logger.warning("room context provider failed: %s", error)
+            else:
+                if room_context is not None:
+                    payload["roomContext"] = room_context
         writer.save(crop, score, metadata=payload)
 
     def _draw_grid(self, image: FrameArray, width: int, height: int) -> None:

@@ -118,6 +118,8 @@ Accepted
 - OpenCV-heavy camera capture / MJPEG generation still stays in the archived `tmp/_trash/GOD_MODE` runtime until the runtime boundary is better isolated
 - the future Electron viewer will consume `asee` backend outputs instead of owning recognition logic
 - the Electron viewer keeps one polling interval alive so backend request rate scales with `ASEE_VIEWER_POLL_INTERVAL_MS` instead of React refresh count
+- face-capture sidecars now act as the canonical triage substrate, carrying not only timestamp/score/label/face-box metadata but also cached room context from SwitchBot devices when available
+- room-context collection is intentionally best-effort, so sensor-command failures never block face-crop persistence
 
 ## Consequences
 

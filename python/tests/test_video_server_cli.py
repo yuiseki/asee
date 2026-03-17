@@ -103,6 +103,9 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
         capture_profile="auto",
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name="リビング温湿度計",
+        room_context_ttl_sec=5.0,
         width=None,
         height=None,
         fps=None,
@@ -116,6 +119,10 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
     with (
         patch("asee.video_server.GodModeVideoServer") as server_class,
         patch("asee.video_server.JsonlDiagnosticsLogger") as logger_class,
+        patch(
+            "asee.video_server.SwitchBotRoomContextProvider",
+            return_value="room-context-provider",
+        ),
     ):
         build_server_from_args(args)
 
@@ -133,6 +140,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=90.0,
         capture_profile="auto",
+        room_context_provider="room-context-provider",
         width=None,
         height=None,
         fps=None,
@@ -159,6 +167,9 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         memory_log_interval_sec=30.0,
         auto_shutdown_sec=0.0,
         capture_profile="auto",
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name="リビング温湿度計",
+        room_context_ttl_sec=5.0,
         width=None,
         height=None,
         fps=None,
@@ -172,6 +183,10 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
     with (
         patch("asee.video_server.GodModeVideoServer") as server_class,
         patch("asee.video_server.JsonlDiagnosticsLogger") as logger_class,
+        patch(
+            "asee.video_server.SwitchBotRoomContextProvider",
+            return_value="room-context-provider",
+        ),
         patch(
             "asee.video_server.build_default_diagnostics_log_path",
             return_value=Path("/tmp/default-asee.jsonl"),
@@ -199,6 +214,9 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         memory_log_interval_sec=12.5,
         auto_shutdown_sec=0.0,
         capture_profile="auto",
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name="リビング温湿度計",
+        room_context_ttl_sec=5.0,
         width=None,
         height=None,
         fps=None,
@@ -255,6 +273,9 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         memory_log_interval_sec=30.0,
         auto_shutdown_sec=0.0,
         capture_profile="auto",
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name="リビング温湿度計",
+        room_context_ttl_sec=5.0,
         width=None,
         height=None,
         fps=None,
@@ -268,12 +289,55 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
     with (
         patch("asee.video_server.GodModeVideoServer") as server_class,
         patch("asee.video_server.JsonlDiagnosticsLogger"),
+        patch(
+            "asee.video_server.SwitchBotRoomContextProvider",
+            return_value="room-context-provider",
+        ),
     ):
         build_server_from_args(args)
 
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
     assert call_kwargs.get("transport") == "webrtc"
+
+
+def test_build_server_from_args_disables_room_context_when_sensor_names_are_empty() -> None:
+    args = SimpleNamespace(
+        port=8765,
+        device=-1,
+        cameras="",
+        cam_interval=60,
+        title="GOD MODE",
+        face_capture_dir="",
+        face_capture_min_interval=1.0,
+        subject_capture_dir="",
+        allow_live_camera=False,
+        diagnostic_log_path="/tmp/asee-test.jsonl",
+        memory_log_interval_sec=30.0,
+        auto_shutdown_sec=0.0,
+        capture_profile="auto",
+        motion_sensor_name="",
+        meter_name="",
+        room_context_ttl_sec=5.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        opencv_threads=None,
+        disable_face_detect=False,
+        detection_backend="onnxruntime",
+        transport="webrtc",
+    )
+
+    with (
+        patch("asee.video_server.GodModeVideoServer") as server_class,
+        patch("asee.video_server.JsonlDiagnosticsLogger"),
+        patch("asee.video_server.SwitchBotRoomContextProvider") as provider_class,
+    ):
+        build_server_from_args(args)
+
+    provider_class.assert_not_called()
+    assert server_class.call_args.kwargs["room_context_provider"] is None
 
 
 def test_main_builds_server_and_starts_it() -> None:

@@ -91,6 +91,10 @@ cd ..
   - fixed label semantics: `owner_positive = owner face image`, `guest_negative = guest face image`, `non_face_negative = non-face false detection image`, `uncertain = holdout`
 - during guest-time collection, both OWNER and SUBJECT crops now use a relaxed `10s` minimum interval plus large guard rails (`500000` files/day, `500000` total files, `50GB`) so rare false-positive / false-negative examples are retained.
 - each captured face crop now writes a sidecar `.json` with timestamp, score, label, face box, and per-frame counts for later relabeling and session triage.
+- when SwitchBot devices are reachable, the same sidecar also records cached room context under `roomContext`
+  - motion sensor: `moveDetected`, `brightness`, `battery`
+  - meter: `temperature`, `humidity`, `battery`
+  - provider failures are best-effort and never block face-crop persistence
 - the official Electron window caption is `ASEE Viewer`.
 - `stop` performs process-group cleanup for both backend and viewer, tolerates stale pid files, and removes the launcher pid file even after bounded auto-shutdown runs.
 - `tmp_main.sh` now builds the Electron app before launch and supervises the viewer process separately, so a viewer-only crash can be retried without restarting the backend.

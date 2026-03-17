@@ -213,6 +213,63 @@ def test_classify_label_saves_owner_crop(blank_frame: np.ndarray):
     assert metadata["faceBox"] == {"x": 15, "y": 25, "w": 35, "h": 45}
 
 
+def test_save_face_capture_includes_room_context(blank_frame: np.ndarray) -> None:
+    room_context = {
+        "source": "switchbot",
+        "observedAt": "2026-03-17T06:00:00",
+        "motionSensor": {"moveDetected": False, "brightness": "dim"},
+    }
+    overlay = GodModeOverlay(
+        width=320,
+        height=240,
+        subject_capture_dir="/tmp/subject-capture-test",
+        room_context_provider=lambda: room_context,
+    )
+    writer = MagicMock()
+    overlay._subject_capture_writer = writer
+    overlay._face_capture_writer = None
+
+    overlay._save_face_capture(
+        blank_frame.copy(),
+        FaceBox(x=12, y=24, w=48, h=64),
+        label="SUBJECT",
+        score=0.42,
+        metadata={"cameraId": 2},
+    )
+
+    writer.save.assert_called_once()
+    metadata = writer.save.call_args.kwargs["metadata"]
+    assert metadata["cameraId"] == 2
+    assert metadata["roomContext"] == room_context
+
+
+def test_save_face_capture_survives_room_context_provider_failure(
+    blank_frame: np.ndarray,
+) -> None:
+    overlay = GodModeOverlay(
+        width=320,
+        height=240,
+        subject_capture_dir="/tmp/subject-capture-test",
+        room_context_provider=lambda: (_ for _ in ()).throw(RuntimeError("sensor unavailable")),
+    )
+    writer = MagicMock()
+    overlay._subject_capture_writer = writer
+    overlay._face_capture_writer = None
+
+    overlay._save_face_capture(
+        blank_frame.copy(),
+        FaceBox(x=12, y=24, w=48, h=64),
+        label="SUBJECT",
+        score=0.42,
+        metadata={"cameraId": 2},
+    )
+
+    writer.save.assert_called_once()
+    metadata = writer.save.call_args.kwargs["metadata"]
+    assert metadata["cameraId"] == 2
+    assert "roomContext" not in metadata
+
+
 def test_detection_backend_opencv_default():
     """Default backend must load cv2.FaceDetectorYN (or None if model missing)."""
     overlay = GodModeOverlay(width=320, height=240)

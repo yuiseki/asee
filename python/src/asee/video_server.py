@@ -40,6 +40,7 @@ from .http_app import create_http_app
 from .model_assets import resolve_model_asset_path
 from .overlay import GodModeOverlay
 from .overlay_broadcaster import OverlayBroadcaster
+from .room_context import SwitchBotRoomContextProvider
 from .server_runtime import SeeingServerRuntime
 from .tracking import FaceBox, FaceTracker
 from .webrtc_signaling import create_webrtc_app
@@ -274,6 +275,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="SUBJECT 顔クロップの保存先ディレクトリ（閾値チューニング用 true negative データ）",
     )
     parser.add_argument(
+        "--motion-sensor-name",
+        default="リビングルームの人感センサー",
+        help="face crop sidecar に記録する SwitchBot Motion Sensor の名前。空文字で無効化",
+    )
+    parser.add_argument(
+        "--meter-name",
+        default="リビング温湿度計",
+        help="face crop sidecar に記録する SwitchBot Meter の名前。空文字で無効化",
+    )
+    parser.add_argument(
+        "--room-context-ttl-sec",
+        type=float,
+        default=5.0,
+        help="SwitchBot room context のキャッシュ TTL（秒）",
+    )
+    parser.add_argument(
         "--allow-live-camera",
         action="store_true",
         help="危険な実機 Web カメラ入力を明示的に許可する",
@@ -355,6 +372,15 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         else build_default_diagnostics_log_path()
     )
     diagnostics_logger = JsonlDiagnosticsLogger(diagnostic_log_path)
+    motion_sensor_name = str(args.motion_sensor_name).strip() or None
+    meter_name = str(args.meter_name).strip() or None
+    room_context_provider = None
+    if motion_sensor_name is not None or meter_name is not None:
+        room_context_provider = SwitchBotRoomContextProvider(
+            motion_sensor_name=motion_sensor_name,
+            meter_name=meter_name,
+            ttl_sec=float(args.room_context_ttl_sec),
+        )
     return GodModeVideoServer(
         port=int(args.port),
         device_index=device_index,
@@ -369,6 +395,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         memory_log_interval_sec=float(args.memory_log_interval_sec),
         auto_shutdown_sec=float(args.auto_shutdown_sec),
         capture_profile=str(args.capture_profile),
+        room_context_provider=room_context_provider,
         width=None if args.width is None else int(args.width),
         height=None if args.height is None else int(args.height),
         fps=None if args.fps is None else float(args.fps),
@@ -420,6 +447,7 @@ class GodModeVideoServer:
         capture_profile: str = "auto",
         detection_backend: str = "onnxruntime",
         transport: str = "webrtc",
+        room_context_provider: Callable[[], dict[str, Any] | None] | None = None,
     ) -> None:
         requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
         if requested_camera_list and not allow_live_camera:
@@ -466,6 +494,7 @@ class GodModeVideoServer:
             face_capture_min_interval=face_capture_min_interval,
             subject_capture_dir=subject_capture_dir,
             detection_backend=detection_backend,
+            room_context_provider=room_context_provider,
         )
         self.runtime = SeeingServerRuntime(
             title=title,
