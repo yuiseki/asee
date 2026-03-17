@@ -52,6 +52,12 @@ cd ..
   - `rebuild` creates a fresh bank from all currently labeled `owner_positive` images
   - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
   - Project 5 `owner_positive` is treated as a holdout acceptance slice
+  - weakly supervised datasets are also loaded by default:
+    - `private/datasets/faces/owner_baseline_non_makeup/2026-03-17_10-00_to_15-59`
+    - `private/datasets/faces/owner_baseline_makeup/2026-03-17_16-00_to_17-20`
+  - those weak datasets are evaluated as:
+    - `owner_raw` guardrails
+    - `subject_false_negative` hard-positive slices
   - negatives are evaluated from every labeled `guest_negative` and `non_face_negative`
   - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
 - owner-embedding experiment matrix runner:
@@ -62,6 +68,8 @@ cd ..
     - `baseline_contacts`
     - `baseline_makeup`
     - `non_face_owner_positives`
+    - `weak_non_makeup_false_negative`
+    - `weak_makeup_false_negative`
   - `baseline_holdout` is evaluation-only and is not used as a source group
   - default strategies are:
     - `append_greedy_p3.0`

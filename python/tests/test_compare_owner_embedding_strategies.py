@@ -152,6 +152,71 @@ def test_build_review_bundle_partitions_projects_by_role(tmp_path: Path) -> None
         "p2-nonface.jpg",
         "p4-nonface.jpg",
     ]
+    assert bundle.weak_non_makeup_owner_raw == ()
+    assert bundle.weak_non_makeup_false_negative == ()
+    assert bundle.weak_makeup_owner_raw == ()
+    assert bundle.weak_makeup_false_negative == ()
+
+
+def test_build_review_bundle_loads_weak_capture_datasets(tmp_path: Path) -> None:
+    project1 = _write_export(
+        tmp_path,
+        "project1",
+        [("owner_positive", "/tmp/p1-owner.jpg")],
+    )
+    project2 = _write_export(
+        tmp_path,
+        "project2",
+        [("owner_positive", "/tmp/p2-owner.jpg")],
+    )
+    project3 = _write_export(
+        tmp_path,
+        "project3",
+        [("owner_positive", "/tmp/p3-owner.jpg")],
+    )
+    non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
+    makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
+    for dataset_root, image_name, label in (
+        (non_makeup_root / "owner_raw" / "10" / "00", "nm-owner.jpg", "OWNER"),
+        (non_makeup_root / "subject_false_negative" / "10" / "01", "nm-fn.jpg", "SUBJECT"),
+        (makeup_root / "owner_raw" / "16" / "00", "m-owner.jpg", "OWNER"),
+        (makeup_root / "subject_false_negative" / "16" / "01", "m-fn.jpg", "SUBJECT"),
+    ):
+        dataset_root.mkdir(parents=True, exist_ok=True)
+        image_path = dataset_root / image_name
+        sidecar_path = image_path.with_suffix(".json")
+        image_path.write_bytes(b"jpg")
+        sidecar_path.write_text(
+            json.dumps(
+                {
+                    "capturedAt": "2026-03-17T10:00:00",
+                    "label": label,
+                    "cameraId": 4,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    bundle = build_review_bundle(
+        hard_positive_export=project1,
+        baseline_contacts_export=project2,
+        baseline_makeup_export=project3,
+        weak_baseline_non_makeup_root=non_makeup_root,
+        weak_baseline_makeup_root=makeup_root,
+    )
+
+    assert [sample.source_image.name for sample in bundle.weak_non_makeup_owner_raw] == [
+        "nm-owner.jpg"
+    ]
+    assert [sample.source_image.name for sample in bundle.weak_non_makeup_false_negative] == [
+        "nm-fn.jpg"
+    ]
+    assert [sample.source_image.name for sample in bundle.weak_makeup_owner_raw] == [
+        "m-owner.jpg"
+    ]
+    assert [sample.source_image.name for sample in bundle.weak_makeup_false_negative] == [
+        "m-fn.jpg"
+    ]
 
 
 def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
@@ -193,6 +258,27 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         "project5",
         [("owner_positive", "/tmp/holdout-1.jpg")],
     )
+    non_makeup_root = tmp_path / "owner_baseline_non_makeup" / "2026-03-17_10-00_to_15-59"
+    makeup_root = tmp_path / "owner_baseline_makeup" / "2026-03-17_16-00_to_17-20"
+    for dataset_root, image_name in (
+        (non_makeup_root / "owner_raw" / "10" / "00", "nm-owner.jpg"),
+        (non_makeup_root / "subject_false_negative" / "10" / "01", "nm-fn.jpg"),
+        (makeup_root / "owner_raw" / "16" / "00", "m-owner.jpg"),
+        (makeup_root / "subject_false_negative" / "16" / "01", "m-fn.jpg"),
+    ):
+        dataset_root.mkdir(parents=True, exist_ok=True)
+        image_path = dataset_root / image_name
+        image_path.write_bytes(b"jpg")
+        image_path.with_suffix(".json").write_text(
+            json.dumps(
+                {
+                    "capturedAt": "2026-03-17T10:00:00",
+                    "label": "OWNER" if "owner" in image_name else "SUBJECT",
+                    "cameraId": 4,
+                }
+            ),
+            encoding="utf-8",
+        )
     owner_embedding_path = tmp_path / "owner_embedding.npy"
     np.save(
         owner_embedding_path,
@@ -205,6 +291,18 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         Path("/tmp/makeup-1.jpg"): np.asarray([[0.93, 0.08, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-owner-1.jpg"): np.asarray([[0.91, 0.09, 0.0]], dtype=np.float32),
         Path("/tmp/holdout-1.jpg"): np.asarray([[0.94, 0.06, 0.0]], dtype=np.float32),
+        non_makeup_root / "owner_raw" / "10" / "00" / "nm-owner.jpg": np.asarray(
+            [[0.96, 0.04, 0.0]], dtype=np.float32
+        ),
+        non_makeup_root / "subject_false_negative" / "10" / "01" / "nm-fn.jpg": np.asarray(
+            [[0.35, 0.93, 0.0]], dtype=np.float32
+        ),
+        makeup_root / "owner_raw" / "16" / "00" / "m-owner.jpg": np.asarray(
+            [[0.97, 0.03, 0.0]], dtype=np.float32
+        ),
+        makeup_root / "subject_false_negative" / "16" / "01" / "m-fn.jpg": np.asarray(
+            [[0.32, 0.95, 0.0]], dtype=np.float32
+        ),
         Path("/tmp/guest-1.jpg"): np.asarray([[-1.0, 0.0, 0.0]], dtype=np.float32),
         Path("/tmp/nonface-1.jpg"): np.asarray([[0.0, 0.0, 1.0]], dtype=np.float32),
         Path("/tmp/nonface-2.jpg"): np.asarray([[0.0, -1.0, 0.0]], dtype=np.float32),
@@ -218,6 +316,8 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
         baseline_makeup_export=project3,
         non_face_hard_negative_export=project4,
         baseline_holdout_export=project5,
+        weak_baseline_non_makeup_root=non_makeup_root,
+        weak_baseline_makeup_root=makeup_root,
         snapshot_dir=tmp_path / "snapshots",
         overlay=_OverlayStub(),
         embedding_lookup=embedding_lookup,
@@ -229,8 +329,14 @@ def test_compare_owner_embedding_strategies_reports_current_append_and_rebuild(
     assert report.current.baseline_contacts.owner_predictions == 1
     assert report.current.non_face_owner_positives.owner_predictions == 1
     assert report.current.baseline_holdout.owner_predictions == 1
+    assert report.current.weak_non_makeup_owner_raw.owner_predictions == 1
+    assert report.current.weak_makeup_owner_raw.owner_predictions == 1
+    assert report.current.weak_non_makeup_false_negative.owner_predictions == 0
+    assert report.current.weak_makeup_false_negative.owner_predictions == 0
     assert report.append.guest_negative.owner_predictions == 0
     assert report.rebuild.non_face_negative.owner_predictions == 0
+    assert report.append.weak_non_makeup_false_negative.owner_predictions == 1
+    assert report.append.weak_makeup_false_negative.owner_predictions == 1
     assert report.append.added_embeddings == 1
     assert report.rebuild.bank_size == 4
     assert report.append.candidate_embedding_path is not None

@@ -19,6 +19,8 @@ from .compare_owner_embedding_strategies import (
     DEFAULT_BASELINE_MAKEUP_BACKUP_ROOT,
     DEFAULT_HARD_POSITIVE_BACKUP_ROOT,
     DEFAULT_NON_FACE_HARD_NEGATIVE_BACKUP_ROOT,
+    DEFAULT_WEAK_BASELINE_MAKEUP_ROOT,
+    DEFAULT_WEAK_BASELINE_NON_MAKEUP_ROOT,
     ReviewBundle,
     ReviewedSample,
     StrategyEvaluationReport,
@@ -71,6 +73,10 @@ class ExperimentResult:
     baseline_makeup_gain: int
     non_face_owner_gain: int
     baseline_holdout_gain: int
+    weak_non_makeup_owner_gain: int
+    weak_non_makeup_false_negative_gain: int
+    weak_makeup_owner_gain: int
+    weak_makeup_false_negative_gain: int
     guest_negative_delta: int
     non_face_negative_delta: int
     negative_all_delta: int
@@ -122,6 +128,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
     )
     parser.add_argument(
+        "--weak-baseline-non-makeup-root",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "--weak-baseline-makeup-root",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
         "--snapshot-dir",
         type=Path,
         default=DEFAULT_SNAPSHOT_DIR,
@@ -149,6 +165,8 @@ def build_default_source_groups(bundle: ReviewBundle) -> tuple[ExperimentSourceG
             ("baseline_contacts", bundle.baseline_contacts),
             ("baseline_makeup", bundle.baseline_makeup),
             ("non_face_owner_positives", bundle.non_face_owner_positives),
+            ("weak_non_makeup_false_negative", bundle.weak_non_makeup_false_negative),
+            ("weak_makeup_false_negative", bundle.weak_makeup_false_negative),
         )
         if samples
     )
@@ -194,6 +212,8 @@ def run_owner_embedding_experiment_matrix(
     baseline_makeup_export: Path,
     non_face_hard_negative_export: Path | None = None,
     baseline_holdout_export: Path | None = None,
+    weak_baseline_non_makeup_root: Path | None = None,
+    weak_baseline_makeup_root: Path | None = None,
     snapshot_dir: Path,
     overlay: OverlayLike | None = None,
     embedding_lookup: dict[Path, EmbeddingArray] | None = None,
@@ -206,6 +226,8 @@ def run_owner_embedding_experiment_matrix(
         baseline_makeup_export=baseline_makeup_export,
         non_face_hard_negative_export=non_face_hard_negative_export,
         baseline_holdout_export=baseline_holdout_export,
+        weak_baseline_non_makeup_root=weak_baseline_non_makeup_root,
+        weak_baseline_makeup_root=weak_baseline_makeup_root,
     )
     if overlay is not None:
         active_overlay = overlay
@@ -223,6 +245,10 @@ def run_owner_embedding_experiment_matrix(
             *bundle.baseline_makeup,
             *bundle.non_face_owner_positives,
             *bundle.baseline_holdout,
+            *bundle.weak_non_makeup_owner_raw,
+            *bundle.weak_non_makeup_false_negative,
+            *bundle.weak_makeup_owner_raw,
+            *bundle.weak_makeup_false_negative,
             *bundle.guest_negative,
             *bundle.non_face_negative,
         ),
@@ -437,6 +463,26 @@ def evaluate_strategy_report_fast(
             sample_embeddings=sample_embeddings,
             owner_embeddings=owner_embeddings,
         ),
+        weak_non_makeup_owner_raw=evaluate_review_samples_fast(
+            samples=bundle.weak_non_makeup_owner_raw,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
+        weak_non_makeup_false_negative=evaluate_review_samples_fast(
+            samples=bundle.weak_non_makeup_false_negative,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
+        weak_makeup_owner_raw=evaluate_review_samples_fast(
+            samples=bundle.weak_makeup_owner_raw,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
+        weak_makeup_false_negative=evaluate_review_samples_fast(
+            samples=bundle.weak_makeup_false_negative,
+            sample_embeddings=sample_embeddings,
+            owner_embeddings=owner_embeddings,
+        ),
         guest_negative=evaluate_review_samples_fast(
             samples=bundle.guest_negative,
             sample_embeddings=sample_embeddings,
@@ -521,6 +567,14 @@ def build_experiment_result(
         - current.non_face_owner_positives.owner_predictions,
         baseline_holdout_gain=report.baseline_holdout.owner_predictions
         - current.baseline_holdout.owner_predictions,
+        weak_non_makeup_owner_gain=report.weak_non_makeup_owner_raw.owner_predictions
+        - current.weak_non_makeup_owner_raw.owner_predictions,
+        weak_non_makeup_false_negative_gain=report.weak_non_makeup_false_negative.owner_predictions
+        - current.weak_non_makeup_false_negative.owner_predictions,
+        weak_makeup_owner_gain=report.weak_makeup_owner_raw.owner_predictions
+        - current.weak_makeup_owner_raw.owner_predictions,
+        weak_makeup_false_negative_gain=report.weak_makeup_false_negative.owner_predictions
+        - current.weak_makeup_false_negative.owner_predictions,
         guest_negative_delta=report.guest_negative.owner_predictions
         - current.guest_negative.owner_predictions,
         non_face_negative_delta=report.non_face_negative.owner_predictions
@@ -544,6 +598,10 @@ def rank_experiment_result(result: ExperimentResult) -> tuple[int, int, int, int
             + result.baseline_makeup_gain
             + result.non_face_owner_gain
             + result.baseline_holdout_gain
+            + result.weak_non_makeup_owner_gain
+            + result.weak_non_makeup_false_negative_gain
+            + result.weak_makeup_owner_gain
+            + result.weak_makeup_false_negative_gain
         ),
         result.added_embeddings,
     )
@@ -559,6 +617,14 @@ def strategy_report_to_dict(report: StrategyEvaluationReport) -> dict[str, objec
         "baseline_makeup": dataset_evaluation_to_dict(report.baseline_makeup),
         "non_face_owner_positives": dataset_evaluation_to_dict(report.non_face_owner_positives),
         "baseline_holdout": dataset_evaluation_to_dict(report.baseline_holdout),
+        "weak_non_makeup_owner_raw": dataset_evaluation_to_dict(report.weak_non_makeup_owner_raw),
+        "weak_non_makeup_false_negative": dataset_evaluation_to_dict(
+            report.weak_non_makeup_false_negative
+        ),
+        "weak_makeup_owner_raw": dataset_evaluation_to_dict(report.weak_makeup_owner_raw),
+        "weak_makeup_false_negative": dataset_evaluation_to_dict(
+            report.weak_makeup_false_negative
+        ),
         "guest_negative": dataset_evaluation_to_dict(report.guest_negative),
         "non_face_negative": dataset_evaluation_to_dict(report.non_face_negative),
         "negative_all": dataset_evaluation_to_dict(report.negative_all),
@@ -583,6 +649,10 @@ def experiment_result_to_dict(result: ExperimentResult) -> dict[str, object]:
         "baseline_makeup_gain": result.baseline_makeup_gain,
         "non_face_owner_gain": result.non_face_owner_gain,
         "baseline_holdout_gain": result.baseline_holdout_gain,
+        "weak_non_makeup_owner_gain": result.weak_non_makeup_owner_gain,
+        "weak_non_makeup_false_negative_gain": result.weak_non_makeup_false_negative_gain,
+        "weak_makeup_owner_gain": result.weak_makeup_owner_gain,
+        "weak_makeup_false_negative_gain": result.weak_makeup_false_negative_gain,
         "guest_negative_delta": result.guest_negative_delta,
         "non_face_negative_delta": result.non_face_negative_delta,
         "negative_all_delta": result.negative_all_delta,
@@ -610,6 +680,10 @@ def format_experiment_result(result: ExperimentResult) -> list[str]:
             f"makeup_gain={result.baseline_makeup_gain} "
             f"nonface_owner_gain={result.non_face_owner_gain} "
             f"holdout_gain={result.baseline_holdout_gain} "
+            f"weak_non_makeup_owner_gain={result.weak_non_makeup_owner_gain} "
+            f"weak_non_makeup_fn_gain={result.weak_non_makeup_false_negative_gain} "
+            f"weak_makeup_owner_gain={result.weak_makeup_owner_gain} "
+            f"weak_makeup_fn_gain={result.weak_makeup_false_negative_gain} "
             f"guest_delta={result.guest_negative_delta} "
             f"nonface_delta={result.non_face_negative_delta} "
             f"negative_all_delta={result.negative_all_delta}"
@@ -622,6 +696,22 @@ def format_experiment_result(result: ExperimentResult) -> list[str]:
             result.report.non_face_owner_positives,
         ),
         format_positive_evaluation("baseline_holdout", result.report.baseline_holdout),
+        format_positive_evaluation(
+            "weak_non_makeup_owner_raw",
+            result.report.weak_non_makeup_owner_raw,
+        ),
+        format_positive_evaluation(
+            "weak_non_makeup_false_negative",
+            result.report.weak_non_makeup_false_negative,
+        ),
+        format_positive_evaluation(
+            "weak_makeup_owner_raw",
+            result.report.weak_makeup_owner_raw,
+        ),
+        format_positive_evaluation(
+            "weak_makeup_false_negative",
+            result.report.weak_makeup_false_negative,
+        ),
         format_negative_evaluation("guest_negative", result.report.guest_negative),
         format_negative_evaluation("non_face_negative", result.report.non_face_negative),
         format_negative_evaluation("negative_all", result.report.negative_all),
@@ -655,6 +745,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline_holdout_export is not None
         else resolve_latest_export_json(DEFAULT_BASELINE_HOLDOUT_BACKUP_ROOT)
     )
+    weak_baseline_non_makeup_root = (
+        Path(args.weak_baseline_non_makeup_root)
+        if args.weak_baseline_non_makeup_root is not None
+        else DEFAULT_WEAK_BASELINE_NON_MAKEUP_ROOT
+    )
+    weak_baseline_makeup_root = (
+        Path(args.weak_baseline_makeup_root)
+        if args.weak_baseline_makeup_root is not None
+        else DEFAULT_WEAK_BASELINE_MAKEUP_ROOT
+    )
     penalties = tuple(args.greedy_penalty) if args.greedy_penalty else (3.0, 1.5)
     report = run_owner_embedding_experiment_matrix(
         owner_embedding_path=Path(args.owner_embedding_path),
@@ -663,6 +763,8 @@ def main(argv: list[str] | None = None) -> int:
         baseline_makeup_export=baseline_makeup_export,
         non_face_hard_negative_export=non_face_hard_negative_export,
         baseline_holdout_export=baseline_holdout_export,
+        weak_baseline_non_makeup_root=weak_baseline_non_makeup_root,
+        weak_baseline_makeup_root=weak_baseline_makeup_root,
         snapshot_dir=Path(args.snapshot_dir),
         strategies=build_default_strategies(
             max_selected=None if args.max_selected is None else int(args.max_selected),
@@ -684,6 +786,30 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     print(format_positive_evaluation("baseline_holdout", report.current.baseline_holdout))
+    print(
+        format_positive_evaluation(
+            "weak_non_makeup_owner_raw",
+            report.current.weak_non_makeup_owner_raw,
+        )
+    )
+    print(
+        format_positive_evaluation(
+            "weak_non_makeup_false_negative",
+            report.current.weak_non_makeup_false_negative,
+        )
+    )
+    print(
+        format_positive_evaluation(
+            "weak_makeup_owner_raw",
+            report.current.weak_makeup_owner_raw,
+        )
+    )
+    print(
+        format_positive_evaluation(
+            "weak_makeup_false_negative",
+            report.current.weak_makeup_false_negative,
+        )
+    )
     print(format_negative_evaluation("guest_negative", report.current.guest_negative))
     print(format_negative_evaluation("non_face_negative", report.current.non_face_negative))
     print(format_negative_evaluation("negative_all", report.current.negative_all))

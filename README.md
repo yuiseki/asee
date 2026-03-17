@@ -57,12 +57,17 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - `append` mines Project 1 hard positives into the existing bank; `rebuild` replaces the bank with all currently labeled `owner_positive` images
   - Project 4 `owner_positive` is treated as an extra hard-positive eval slice
   - Project 5 `owner_positive` is treated as a holdout acceptance slice
+  - weakly supervised baseline datasets are also read by default:
+    - `private/datasets/faces/owner_baseline_non_makeup/2026-03-17_10-00_to_15-59`
+    - `private/datasets/faces/owner_baseline_makeup/2026-03-17_16-00_to_17-20`
+  - their `owner_raw` images act as guardrails and their `subject_false_negative` images act as weak hard-positive slices
   - all labeled `guest_negative` and `non_face_negative` images are used as acceptance negatives
   - writes candidate `.npy` snapshots into `private/datasets/faces/owner_embedding_snapshots/`
 - owner-embedding experiment matrix runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_embedding_experiment_matrix`
   - runs `candidate-source x strategy` experiments across the same labeled project family
   - default source groups cover every non-empty combination of hard-positive glasses, baseline contacts, baseline makeup, and Project 4 owner-positive recoveries
+    plus weak non-makeup / weak makeup false-negative slices
   - Project 5 holdout is evaluation-only and is never used as a source group
   - default strategies cover conservative/permissive greedy append, full append, and rebuild
   - writes per-experiment candidate banks plus `summary.json` into `private/datasets/faces/owner_embedding_snapshots/owner_embedding_experiment_matrix_<timestamp>/`
