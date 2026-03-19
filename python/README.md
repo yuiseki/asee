@@ -80,6 +80,17 @@ cd ..
     - `append_full`
     - `rebuild`
   - writes per-experiment candidate banks plus `summary.json` into `private/datasets/faces/owner_embedding_snapshots/owner_embedding_experiment_matrix_<timestamp>/`
+- labeled owner rebuild dataset materializer:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_rebuild_dataset`
+  - resolves the latest Label Studio backups for Projects 1-8
+  - creates a deterministic `train/valid/test` split under `private/datasets/faces/owner_rebuild_dataset/all-labeled-v1/`
+  - writes symlinked samples, `manifest.jsonl`, and `summary.json`
+- split-aware rebuild experiment runner:
+  `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_rebuild_split_experiment`
+  - reads the materialized `train/valid/test` dataset
+  - evaluates `current`, `append(train)`, `rebuild(train-all)`, and `rebuild(train-greedy)` strategies
+  - uses train negatives as the penalty set and reports valid/test metrics separately
+  - writes `summary.json` plus candidate banks into `private/datasets/faces/owner_embedding_snapshots/owner_rebuild_split_experiment_<timestamp>/`
 - mixed subject-session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`
   - writes conservative copies into `private/datasets/faces/others_guest_session_triaged/<session>/{likely_guest_negative,likely_owner_false_negative,uncertain}` plus `manifest.jsonl`
