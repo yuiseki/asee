@@ -130,9 +130,9 @@ def normalize_owner_embeddings(embeddings: EmbeddingArray) -> EmbeddingArray:
     """Normalize embeddings into the runtime `(N, 1, 128)` shape."""
     array = np.asarray(embeddings, dtype=np.float32)
     if array.ndim == 1:
-        return cast(EmbeddingArray, array.reshape(1, 1, -1))
+        return array.reshape(1, 1, -1)
     if array.ndim == 2:
-        return cast(EmbeddingArray, array.reshape(array.shape[0], 1, array.shape[1]))
+        return array.reshape(array.shape[0], 1, array.shape[1])
     if array.ndim == 3:
         return array.copy()
     raise ValueError(f"unsupported embedding shape: {array.shape}")

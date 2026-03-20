@@ -140,6 +140,8 @@ python3 -m venv .venv
 # WebRTC is now the default transport; MJPEG remains available as a fallback
 .venv/bin/python -m asee.video_server --port 8765
 .venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
+# facenet-pytorch is now the default recognition backend; keep OpenCV SFace as an explicit fallback
+.venv/bin/python -m asee.video_server --port 8765 --recognition-backend opencv-sface
 # bounded current multicamera default
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # isolate camera/native pressure from face-detect pressure
@@ -153,6 +155,11 @@ python3 -m venv .venv
 ```
 
 - WebRTC is now the default runtime path for direct CLI launches.
+- `facenet-pytorch` is now the default recognition backend.
+- `--recognition-backend opencv-sface` keeps the previous OpenCV/SFace path available for explicit fallback runs.
+- detection and recognition are now selected independently:
+  - `--detection-backend onnxruntime|opencv`
+  - `--recognition-backend facenet-pytorch|opencv-sface`
 - The current staging modules are:
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`

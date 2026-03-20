@@ -18,6 +18,7 @@ from .dnn_policy import (
     emit_opencl_nonfatal_warning_note,
     should_use_opencl_dnn,
 )
+from .facenet_recognizer import FaceNetPytorchRecognizer
 from .model_assets import resolve_model_asset_path
 from .owner_policy import classify_owner_embedding, keep_largest_owner
 from .tracking import FaceBox, FaceTracker
@@ -106,6 +107,7 @@ class GodModeOverlay:
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
         detection_backend: str = "opencv",
+        recognition_backend: str = "facenet-pytorch",
         room_context_provider: RoomContextProvider | None = None,
     ) -> None:
         self.width = width
@@ -119,10 +121,16 @@ class GodModeOverlay:
 
         if detection_backend == "onnxruntime":
             self._detector = self._load_yunet_onnxruntime(yunet_path, width, height)
-            self._recognizer = self._load_sface_onnxruntime(sface_path)
         else:
             self._detector = self._load_yunet(yunet_path, width, height)
+        if recognition_backend == "facenet-pytorch":
+            self._recognizer = self._load_facenet_recognizer()
+        elif recognition_backend == "opencv-sface":
             self._recognizer = self._cpu_recognizer
+        else:
+            raise ValueError(
+                "Recognition backend must be one of: facenet-pytorch, opencv-sface"
+            )
         self._haar = self._load_haar()
         self._tracker = FaceTracker(alpha=0.4, max_lost_frames=2, min_hits=3)
         self._yunet_pipeline: YunetDetectionPipeline | None = None
@@ -170,7 +178,7 @@ class GodModeOverlay:
 
     def set_owner_embedding(self, embedding: EmbeddingArray) -> None:
         if embedding.ndim == 1:
-            self._owner_embeddings = cast(EmbeddingArray, embedding.reshape(1, -1))
+            self._owner_embeddings = embedding.reshape(1, -1)
         else:
             self._owner_embeddings = embedding.copy()
 
@@ -254,7 +262,7 @@ class GodModeOverlay:
         frame_count: int = 0,
         face_boxes: list[FaceBox] | None = None,
         smooth: bool = True,
-    ) -> np.ndarray:
+    ) -> FrameArray:
         del frame_count
         # Draw on a copy to keep the original frame clean
         output = cast(
@@ -327,6 +335,12 @@ class GodModeOverlay:
                 "onnxruntime SFace load failed, falling back to OpenCV: %s", error
             )
             return self._load_sface(path)
+
+    @staticmethod
+    def _load_facenet_recognizer() -> Any:
+        recognizer = FaceNetPytorchRecognizer(device="cuda")
+        logger.info("FaceNet loaded via pytorch (%s)", recognizer.active_provider)
+        return recognizer
 
     def _load_sface(self, path: str) -> Any:
         if not os.path.exists(path):

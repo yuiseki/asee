@@ -347,6 +347,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="顔検出バックエンド: onnxruntime (既定, CUDA GPU 推論) または opencv (CPU)",
     )
     parser.add_argument(
+        "--recognition-backend",
+        choices=["facenet-pytorch", "opencv-sface"],
+        default="facenet-pytorch",
+        help="顔識別バックエンド: facenet-pytorch (既定, CUDA) または opencv-sface",
+    )
+    parser.add_argument(
         "--transport",
         choices=("mjpeg", "webrtc"),
         default="webrtc",
@@ -403,6 +409,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
+        recognition_backend=str(args.recognition_backend),
         transport=str(getattr(args, "transport", "webrtc")),
     )
 
@@ -446,6 +453,7 @@ class GodModeVideoServer:
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
         detection_backend: str = "onnxruntime",
+        recognition_backend: str = "facenet-pytorch",
         transport: str = "webrtc",
         room_context_provider: Callable[[], dict[str, Any] | None] | None = None,
     ) -> None:
@@ -494,6 +502,7 @@ class GodModeVideoServer:
             face_capture_min_interval=face_capture_min_interval,
             subject_capture_dir=subject_capture_dir,
             detection_backend=detection_backend,
+            recognition_backend=recognition_backend,
             room_context_provider=room_context_provider,
         )
         self.runtime = SeeingServerRuntime(

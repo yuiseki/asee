@@ -150,3 +150,8 @@ Accepted
 - the staged WebRTC path now depends on the same runtime state as the Flask path, so the remaining migration work is transport startup selection and viewer replacement, not a second backend
 - the staged transport can now be exercised from the canonical backend CLI without forking a separate PoC server
 - the official Electron surface is now part of that staged transport plan instead of waiting for a later viewer rewrite
+- the next recognition slice decouples face-recognition backend selection from detection backend selection
+  - `asee.video_server` now defaults recognition to `facenet-pytorch`
+  - `--recognition-backend opencv-sface` preserves the previous OpenCV/SFace path as an explicit fallback
+  - detection remains independently selectable through `--detection-backend onnxruntime|opencv`
+  - the centralized detection/runtime contract is unchanged; recognition still returns embeddings for the same per-camera face boxes

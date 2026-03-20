@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
 from .compare_owner_embedding_strategies import (
     DEFAULT_BASELINE_CONTACTS_BACKUP_ROOT,
@@ -32,6 +33,8 @@ from .compare_owner_embedding_strategies import (
     format_positive_evaluation,
     resolve_latest_export_json,
 )
+
+type ScoreMatrix = npt.NDArray[np.float32]
 from .enroll_owner import DEFAULT_OWNER_EMBED_PATH
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK
 from .retrain_owner_embedding import (
@@ -408,10 +411,10 @@ def build_strategy_candidate_embeddings(
 
 def greedy_select_indices(
     *,
-    positive_candidate_scores: np.ndarray,
-    negative_candidate_scores: np.ndarray,
-    positive_topk_values: np.ndarray,
-    negative_topk_values: np.ndarray,
+    positive_candidate_scores: ScoreMatrix,
+    negative_candidate_scores: ScoreMatrix,
+    positive_topk_values: ScoreMatrix,
+    negative_topk_values: ScoreMatrix,
     threshold: float,
     negative_penalty: float,
     max_selected: int | None,

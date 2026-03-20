@@ -19,7 +19,12 @@ type EmbeddingArray = npt.NDArray[np.float32]
 class FaceRecognizerLike(Protocol):
     """Minimal FaceRecognizerSF-compatible matching surface."""
 
-    def match(self, reference: np.ndarray, embedding: np.ndarray, metric: int) -> float: ...
+    def match(
+        self,
+        reference: EmbeddingArray,
+        embedding: EmbeddingArray,
+        metric: int,
+    ) -> float: ...
 
 
 def keep_largest_owner(faces: list[FaceBox]) -> list[FaceBox]:

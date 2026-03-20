@@ -279,23 +279,78 @@ def test_detection_backend_opencv_default():
     assert not isinstance(overlay._detector, GpuYuNetDetector)
 
 
-def test_detection_backend_onnxruntime():
-    """onnxruntime backend must create a GpuYuNetDetector and GpuSFaceRecognizer."""
-    from asee.gpu_sface import GpuSFaceRecognizer
-    from asee.gpu_yunet import GpuYuNetDetector
+def test_recognition_backend_default_is_facenet_pytorch() -> None:
+    cpu_recognizer = object()
+    facenet_recognizer = object()
 
-    overlay = GodModeOverlay(
-        width=640,
-        height=640,
-        detection_backend="onnxruntime",
-    )
-    assert isinstance(overlay._detector, GpuYuNetDetector)
-    assert isinstance(overlay._recognizer, GpuSFaceRecognizer)
+    with (
+        patch.object(GodModeOverlay, "_load_sface", return_value=cpu_recognizer),
+        patch.object(
+            GodModeOverlay,
+            "_load_facenet_recognizer",
+            return_value=facenet_recognizer,
+        ),
+        patch.object(GodModeOverlay, "_load_yunet", return_value=None),
+        patch.object(GodModeOverlay, "_load_haar", return_value=None),
+    ):
+        overlay = GodModeOverlay(width=320, height=240)
+
+    assert overlay._cpu_recognizer is cpu_recognizer
+    assert overlay._recognizer is facenet_recognizer
+
+
+def test_recognition_backend_opencv_sface_uses_cpu_recognizer() -> None:
+    cpu_recognizer = object()
+
+    with (
+        patch.object(GodModeOverlay, "_load_sface", return_value=cpu_recognizer),
+        patch.object(GodModeOverlay, "_load_facenet_recognizer") as load_facenet,
+        patch.object(GodModeOverlay, "_load_yunet", return_value=None),
+        patch.object(GodModeOverlay, "_load_haar", return_value=None),
+    ):
+        overlay = GodModeOverlay(
+            width=320,
+            height=240,
+            recognition_backend="opencv-sface",
+        )
+
+    load_facenet.assert_not_called()
+    assert overlay._recognizer is cpu_recognizer
+
+
+def test_detection_backend_onnxruntime_with_facenet_recognition_uses_gpu_detector() -> None:
+    cpu_recognizer = object()
+    facenet_recognizer = object()
+
+    with (
+        patch.object(GodModeOverlay, "_load_sface", return_value=cpu_recognizer),
+        patch.object(
+            GodModeOverlay,
+            "_load_facenet_recognizer",
+            return_value=facenet_recognizer,
+        ),
+        patch.object(GodModeOverlay, "_load_yunet_onnxruntime", return_value="gpu-detector"),
+        patch.object(GodModeOverlay, "_load_haar", return_value=None),
+    ):
+        overlay = GodModeOverlay(
+            width=640,
+            height=640,
+            detection_backend="onnxruntime",
+            recognition_backend="facenet-pytorch",
+        )
+
+    assert overlay._detector == "gpu-detector"
+    assert overlay._recognizer is facenet_recognizer
 
 
 def test_detection_backend_onnxruntime_detects_no_faces_on_blank():
     """onnxruntime backend detect_faces on blank frame must return empty list."""
-    overlay = GodModeOverlay(width=640, height=640, detection_backend="onnxruntime")
+    overlay = GodModeOverlay(
+        width=640,
+        height=640,
+        detection_backend="onnxruntime",
+        recognition_backend="opencv-sface",
+    )
     blank = np.zeros((640, 640, 3), dtype=np.uint8)
     faces = overlay.detect_faces(blank)
     assert isinstance(faces, list)

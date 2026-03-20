@@ -113,6 +113,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         disable_face_detect=True,
         detection_backend="opencv",
+        recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
 
@@ -148,6 +149,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         enable_face_detection=False,
         detection_backend="opencv",
+        recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
 
@@ -177,6 +179,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
+        recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
 
@@ -224,6 +227,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="opencv",
+        recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
 
@@ -240,6 +244,14 @@ def test_build_arg_parser_accepts_detection_backend_onnxruntime() -> None:
     assert args.detection_backend == "onnxruntime"
 
 
+def test_build_arg_parser_accepts_recognition_backend_opencv_sface() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args(["--recognition-backend", "opencv-sface"])
+    assert args.recognition_backend == "opencv-sface"
+
+
 def test_build_arg_parser_detection_backend_default_is_onnxruntime() -> None:
     """--detection-backend must default to 'onnxruntime'."""
     from asee.video_server import build_arg_parser
@@ -247,6 +259,14 @@ def test_build_arg_parser_detection_backend_default_is_onnxruntime() -> None:
     parser = build_arg_parser()
     args = parser.parse_args([])
     assert args.detection_backend == "onnxruntime"
+
+
+def test_build_arg_parser_recognition_backend_default_is_facenet_pytorch() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.recognition_backend == "facenet-pytorch"
 
 
 def test_build_arg_parser_transport_default_is_webrtc() -> None:
@@ -283,6 +303,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="onnxruntime",
+        recognition_backend="opencv-sface",
         transport="webrtc",
     )
 
@@ -298,6 +319,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
 
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
+    assert call_kwargs.get("recognition_backend") == "opencv-sface"
     assert call_kwargs.get("transport") == "webrtc"
 
 
@@ -326,6 +348,7 @@ def test_build_server_from_args_disables_room_context_when_sensor_names_are_empt
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="onnxruntime",
+        recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
 
