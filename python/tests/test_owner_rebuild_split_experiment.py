@@ -10,6 +10,7 @@ from asee.owner_rebuild_dataset import materialize_split_dataset
 from asee.owner_rebuild_split_experiment import (
     load_split_dataset,
     run_owner_rebuild_split_experiment,
+    select_pruned_embedding_indices,
 )
 
 
@@ -257,4 +258,44 @@ def test_run_owner_rebuild_split_experiment_reports_append_and_rebuild(tmp_path:
     assert append.evaluation.valid_guest_negative.owner_predictions == 0
     assert report.rebuild_all.bank_size == 2
     assert report.rebuild_greedy_results[0].bank_size >= 1
+    assert report.prune_results[0].bank_size <= report.current.bank_size
     assert report.summary_path.exists()
+
+
+def test_select_pruned_embedding_indices_removes_harmful_current_embedding(tmp_path: Path) -> None:
+    owner_keep = _sample(
+        tmp_path,
+        project_name="project-owner",
+        label="owner_positive",
+        task_id=1,
+        image_name="owner.jpg",
+    )
+    negative = _sample(
+        tmp_path,
+        project_name="project-guest",
+        label="guest_negative",
+        task_id=2,
+        image_name="negative.jpg",
+    )
+    current_embeddings = np.asarray(
+        [
+            [[1.0, 0.0, 0.0]],
+            [[0.0, 1.0, 0.0]],
+        ],
+        dtype=np.float32,
+    )
+    sample_embeddings = {
+        owner_keep.source_image: np.asarray([[0.98, 0.20, 0.0]], dtype=np.float32),
+        negative.source_image: np.asarray([[0.20, 0.98, 0.0]], dtype=np.float32),
+    }
+
+    keep_indices = select_pruned_embedding_indices(
+        current_embeddings=current_embeddings,
+        positive_samples=(owner_keep,),
+        negative_samples=(negative,),
+        sample_embeddings=sample_embeddings,
+        negative_penalty=4.0,
+        max_remove=1,
+    )
+
+    assert keep_indices == (0,)

@@ -88,8 +88,9 @@ cd ..
 - split-aware rebuild experiment runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_rebuild_split_experiment`
   - reads the materialized `train/valid/test` dataset
-  - evaluates `current`, `append(train)`, `rebuild(train-all)`, and `rebuild(train-greedy)` strategies
+  - evaluates `current`, `append(train)`, `rebuild(train-all)`, `rebuild(train-greedy)`, and `prune(current)` strategies
   - uses train negatives as the penalty set and reports valid/test metrics separately
+  - `prune(current)` ranks current-bank embeddings by how often they contribute to train false owners versus train true owners, then removes the highest-risk subset
   - writes `summary.json` plus candidate banks into `private/datasets/faces/owner_embedding_snapshots/owner_rebuild_split_experiment_<timestamp>/`
 - mixed subject-session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`

@@ -79,8 +79,9 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
   - writes symlinked samples plus `manifest.jsonl` and `summary.json` under `private/datasets/faces/owner_rebuild_dataset/all-labeled-v1/`
 - split-aware rebuild experiment runner:
   `cd /home/yuiseki/Workspaces/repos/asee/python && PYTHONPATH=src python3 -m asee.owner_rebuild_split_experiment`
-  - evaluates `current`, `append(train)`, `rebuild(train-all)`, and `rebuild(train-greedy)` on the materialized split dataset
+  - evaluates `current`, `append(train)`, `rebuild(train-all)`, `rebuild(train-greedy)`, and `prune(current)` on the materialized split dataset
   - uses train negatives as the weighting/penalty set and reports valid/test metrics separately
+  - `prune(current)` removes embeddings from the live bank when they contribute to train false-owner negatives more than to train true-owner positives
   - writes candidate banks plus `summary.json` into `private/datasets/faces/owner_embedding_snapshots/owner_rebuild_split_experiment_<timestamp>/`
 - mixed SUBJECT session triage helper:
   `cd /home/yuiseki/Workspaces/repos/asee/python && GOD_MODE_DISABLE_OPENCL_DNN=1 PYTHONPATH=src python3 -m asee.triage_mixed_subject_session --session-dir /home/yuiseki/Workspaces/private/datasets/faces/others_guest_session/<session>`

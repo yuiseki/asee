@@ -29,6 +29,7 @@ from .retrain_owner_embedding import (
     EmbeddingArray,
     OverlayLike,
     build_cosine_similarity_matrix,
+    build_topk_values,
     greedy_select_false_negative_candidates,
     normalize_owner_embeddings,
 )
@@ -98,6 +99,7 @@ class SplitExperimentReport:
     append_results: tuple[SplitExperimentResult, ...]
     rebuild_all: SplitExperimentResult
     rebuild_greedy_results: tuple[SplitExperimentResult, ...]
+    prune_results: tuple[SplitExperimentResult, ...]
     summary_path: Path
 
 
@@ -125,6 +127,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         nargs="+",
         default=(3.0, 5.0),
+    )
+    parser.add_argument(
+        "--prune-limits",
+        type=int,
+        nargs="+",
+        default=(5, 10, 20, 40),
     )
     return parser
 
@@ -180,6 +188,7 @@ def run_owner_rebuild_split_experiment(
     owner_embedding_path: Path,
     snapshot_dir: Path,
     negative_penalties: tuple[float, ...] = (3.0, 5.0),
+    prune_limits: tuple[int, ...] = (5, 10, 20, 40),
     overlay: OverlayLike | None = None,
     embedding_lookup: dict[Path, EmbeddingArray] | None = None,
 ) -> SplitExperimentReport:
@@ -253,6 +262,20 @@ def run_owner_rebuild_split_experiment(
         )
         for penalty in negative_penalties
     )
+    prune_results = tuple(
+        _run_prune_result(
+            key=f"prune_current_p{penalty:.1f}_n{limit}",
+            current_embeddings=current_embeddings,
+            dataset=dataset,
+            sample_embeddings=sample_embeddings,
+            overlay=active_overlay,
+            negative_penalty=penalty,
+            max_remove=limit,
+            output_dir=output_dir,
+        )
+        for penalty in negative_penalties
+        for limit in prune_limits
+    )
 
     summary = {
         "dataset_root": str(dataset_root),
@@ -263,6 +286,7 @@ def run_owner_rebuild_split_experiment(
         "rebuild_greedy_results": [
             _serialize_result(result) for result in rebuild_greedy_results
         ],
+        "prune_results": [_serialize_result(result) for result in prune_results],
     }
     summary_path = output_dir / "summary.json"
     summary_path.write_text(
@@ -277,6 +301,7 @@ def run_owner_rebuild_split_experiment(
         append_results=append_results,
         rebuild_all=rebuild_all,
         rebuild_greedy_results=rebuild_greedy_results,
+        prune_results=prune_results,
         summary_path=summary_path,
     )
 
@@ -376,6 +401,42 @@ def _run_rebuild_greedy_result(
     )
 
 
+def _run_prune_result(
+    *,
+    key: str,
+    current_embeddings: EmbeddingArray,
+    dataset: SplitDataset,
+    sample_embeddings: dict[Path, EmbeddingArray],
+    overlay: OverlayLike,
+    negative_penalty: float,
+    max_remove: int,
+    output_dir: Path,
+) -> SplitExperimentResult:
+    keep_indices = select_pruned_embedding_indices(
+        current_embeddings=current_embeddings,
+        positive_samples=dataset.train_owner_positive,
+        negative_samples=dataset.train_negative_all,
+        sample_embeddings=sample_embeddings,
+        negative_penalty=negative_penalty,
+        max_remove=max_remove,
+    )
+    owner_embeddings = current_embeddings[list(keep_indices)]
+    candidate_path = output_dir / f"{key}.npy"
+    np.save(candidate_path, owner_embeddings)
+    return SplitExperimentResult(
+        strategy_key=key,
+        bank_size=int(owner_embeddings.shape[0]),
+        selected_embeddings=int(current_embeddings.shape[0] - owner_embeddings.shape[0]),
+        evaluation=_evaluate_split_dataset(
+            dataset=dataset,
+            owner_embeddings=owner_embeddings,
+            sample_embeddings=sample_embeddings,
+            overlay=overlay,
+        ),
+        candidate_embedding_path=candidate_path,
+    )
+
+
 def _build_rebuild_all_embeddings(
     *,
     train_owner_positive: tuple[ReviewedSample, ...],
@@ -388,6 +449,79 @@ def _build_rebuild_all_embeddings(
     if owner_embeddings.shape[0] == 0:
         raise RuntimeError("no train owner_positive embeddings available")
     return owner_embeddings
+
+
+def select_pruned_embedding_indices(
+    *,
+    current_embeddings: EmbeddingArray,
+    positive_samples: tuple[ReviewedSample, ...],
+    negative_samples: tuple[ReviewedSample, ...],
+    sample_embeddings: dict[Path, EmbeddingArray],
+    negative_penalty: float,
+    max_remove: int,
+) -> tuple[int, ...]:
+    if max_remove <= 0:
+        return tuple(range(int(current_embeddings.shape[0])))
+
+    positive_paths, positive_embeddings = embeddings_from_samples(
+        samples=positive_samples,
+        sample_embeddings=sample_embeddings,
+    )
+    negative_paths, negative_embeddings = embeddings_from_samples(
+        samples=negative_samples,
+        sample_embeddings=sample_embeddings,
+    )
+    bank_size = int(current_embeddings.shape[0])
+    if bank_size == 0:
+        return ()
+
+    positive_hits = np.zeros(bank_size, dtype=np.int32)
+    negative_hits = np.zeros(bank_size, dtype=np.int32)
+
+    if len(positive_paths) > 0:
+        positive_similarity = build_cosine_similarity_matrix(
+            current_embeddings,
+            positive_embeddings,
+        )
+        positive_topk_values = build_topk_values(positive_similarity, topk=OWNER_TOPK)
+        positive_owner_mask = positive_topk_values.mean(axis=1) >= OWNER_COSINE_THRESHOLD
+        k = min(OWNER_TOPK, positive_similarity.shape[0])
+        positive_top_indices = np.argpartition(
+            positive_similarity,
+            positive_similarity.shape[0] - k,
+            axis=0,
+        )[-k:]
+        for column_index, is_owner in enumerate(positive_owner_mask):
+            if not bool(is_owner):
+                continue
+            for embedding_index in positive_top_indices[:, column_index]:
+                positive_hits[int(embedding_index)] += 1
+
+    if len(negative_paths) > 0:
+        negative_similarity = build_cosine_similarity_matrix(
+            current_embeddings,
+            negative_embeddings,
+        )
+        negative_topk_values = build_topk_values(negative_similarity, topk=OWNER_TOPK)
+        negative_owner_mask = negative_topk_values.mean(axis=1) >= OWNER_COSINE_THRESHOLD
+        k = min(OWNER_TOPK, negative_similarity.shape[0])
+        negative_top_indices = np.argpartition(
+            negative_similarity,
+            negative_similarity.shape[0] - k,
+            axis=0,
+        )[-k:]
+        for column_index, is_owner in enumerate(negative_owner_mask):
+            if not bool(is_owner):
+                continue
+            for embedding_index in negative_top_indices[:, column_index]:
+                negative_hits[int(embedding_index)] += 1
+
+    score = negative_hits.astype(np.float32) * float(negative_penalty) - positive_hits.astype(
+        np.float32
+    )
+    ranked = [index for index in np.argsort(score)[::-1] if score[index] > 0]
+    to_remove = set(ranked[:max_remove])
+    return tuple(index for index in range(bank_size) if index not in to_remove)
 
 
 def _evaluate_split_dataset(
@@ -499,6 +633,7 @@ def main() -> int:
         owner_embedding_path=Path(args.owner_embedding_path),
         snapshot_dir=Path(args.snapshot_dir),
         negative_penalties=tuple(float(value) for value in args.negative_penalties),
+        prune_limits=tuple(int(value) for value in args.prune_limits),
     )
     print(f"summary={report.summary_path}")
     return 0
