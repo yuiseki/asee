@@ -115,6 +115,7 @@ class GodModeOverlay:
         self.caption = ""
         self.prediction = ""
         self._owner_embeddings: EmbeddingArray | None = None
+        self._recognition_backend = recognition_backend
 
         # GPU recognizer needs a CPU counterpart for alignCrop (OpenCV implementation)
         self._cpu_recognizer = self._load_sface(sface_path)
@@ -177,6 +178,17 @@ class GodModeOverlay:
         self.prediction = text
 
     def set_owner_embedding(self, embedding: EmbeddingArray) -> None:
+        expected_dim = 512 if self._recognition_backend == "facenet-pytorch" else 128
+        actual_dim = int(embedding.shape[-1])
+        if actual_dim != expected_dim:
+            logger.warning(
+                "Owner embedding dim mismatch for %s: expected=%s actual=%s; ignoring owner bank",
+                self._recognition_backend,
+                expected_dim,
+                actual_dim,
+            )
+            self._owner_embeddings = None
+            return
         if embedding.ndim == 1:
             self._owner_embeddings = embedding.reshape(1, -1)
         else:

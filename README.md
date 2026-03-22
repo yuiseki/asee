@@ -152,6 +152,10 @@ python3 -m venv .venv
 - Detection and recognition backends are now decoupled:
   - `--detection-backend onnxruntime|opencv`
   - `--recognition-backend facenet-pytorch|opencv-sface`
+- owner banks are now backend-specific:
+  - `python/src/asee/models/owner_embedding_facenet_pytorch.npy`
+  - `python/src/asee/models/owner_embedding_opencv_sface.npy`
+  - legacy `owner_embedding.npy` is only used as an OpenCV fallback during migration
 - A first WebRTC migration slice now exists in the Python package:
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`

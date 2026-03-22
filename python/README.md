@@ -160,6 +160,10 @@ python3 -m venv .venv
 - detection and recognition are now selected independently:
   - `--detection-backend onnxruntime|opencv`
   - `--recognition-backend facenet-pytorch|opencv-sface`
+- owner embedding assets are now backend-specific:
+  - `python/src/asee/models/owner_embedding_facenet_pytorch.npy`
+  - `python/src/asee/models/owner_embedding_opencv_sface.npy`
+  - legacy `owner_embedding.npy` remains as an OpenCV fallback while operators migrate
 - The current staging modules are:
   - `asee.overlay_data`
   - `asee.overlay_broadcaster`

@@ -33,8 +33,6 @@ from .compare_owner_embedding_strategies import (
     format_positive_evaluation,
     resolve_latest_export_json,
 )
-
-type ScoreMatrix = npt.NDArray[np.float32]
 from .enroll_owner import DEFAULT_OWNER_EMBED_PATH
 from .owner_policy import OWNER_COSINE_THRESHOLD, OWNER_TOPK
 from .retrain_owner_embedding import (
@@ -47,6 +45,8 @@ from .retrain_owner_embedding import (
     normalize_owner_embeddings,
     snapshot_owner_embedding,
 )
+
+type ScoreMatrix = npt.NDArray[np.float32]
 
 
 @dataclass(frozen=True, slots=True)

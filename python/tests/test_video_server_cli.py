@@ -15,6 +15,7 @@ from asee.video_server import (
     main,
     resolve_camera_args,
     resolve_capture_settings,
+    resolve_default_owner_embedding_path,
     resolve_opencv_threads,
 )
 
@@ -150,6 +151,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         enable_face_detection=False,
         detection_backend="opencv",
         recognition_backend="facenet-pytorch",
+        owner_embedding_path=resolve_default_owner_embedding_path("facenet-pytorch"),
         transport="webrtc",
     )
 
@@ -269,6 +271,18 @@ def test_build_arg_parser_recognition_backend_default_is_facenet_pytorch() -> No
     assert args.recognition_backend == "facenet-pytorch"
 
 
+def test_resolve_default_owner_embedding_path_for_facenet() -> None:
+    path = resolve_default_owner_embedding_path("facenet-pytorch")
+
+    assert path.name == "owner_embedding_facenet_pytorch.npy"
+
+
+def test_resolve_default_owner_embedding_path_for_opencv_sface() -> None:
+    path = resolve_default_owner_embedding_path("opencv-sface")
+
+    assert path.name == "owner_embedding_opencv_sface.npy"
+
+
 def test_build_arg_parser_transport_default_is_webrtc() -> None:
     from asee.video_server import build_arg_parser
 
@@ -320,7 +334,52 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
     assert call_kwargs.get("recognition_backend") == "opencv-sface"
+    assert call_kwargs.get("owner_embedding_path").name == "owner_embedding_opencv_sface.npy"
     assert call_kwargs.get("transport") == "webrtc"
+
+
+def test_build_server_from_args_defaults_facenet_owner_embedding_path() -> None:
+    args = SimpleNamespace(
+        port=8765,
+        device=-1,
+        cameras="",
+        cam_interval=60,
+        title="GOD MODE",
+        face_capture_dir="",
+        face_capture_min_interval=1.0,
+        subject_capture_dir="",
+        allow_live_camera=False,
+        diagnostic_log_path="/tmp/asee-test.jsonl",
+        memory_log_interval_sec=30.0,
+        auto_shutdown_sec=0.0,
+        capture_profile="auto",
+        motion_sensor_name="リビングルームの人感センサー",
+        meter_name="リビング温湿度計",
+        room_context_ttl_sec=5.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        opencv_threads=None,
+        disable_face_detect=False,
+        detection_backend="onnxruntime",
+        recognition_backend="facenet-pytorch",
+        transport="webrtc",
+    )
+
+    with (
+        patch("asee.video_server.GodModeVideoServer") as server_class,
+        patch("asee.video_server.JsonlDiagnosticsLogger"),
+        patch(
+            "asee.video_server.SwitchBotRoomContextProvider",
+            return_value="room-context-provider",
+        ),
+    ):
+        build_server_from_args(args)
+
+    call_kwargs = server_class.call_args.kwargs
+    assert call_kwargs.get("recognition_backend") == "facenet-pytorch"
+    assert call_kwargs.get("owner_embedding_path").name == "owner_embedding_facenet_pytorch.npy"
 
 
 def test_build_server_from_args_disables_room_context_when_sensor_names_are_empty() -> None:

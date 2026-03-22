@@ -49,6 +49,10 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
 OWNER_EMBED_PATH = resolve_model_asset_path("owner_embedding.npy")
+OWNER_EMBED_PATHS = {
+    "facenet-pytorch": resolve_model_asset_path("owner_embedding_facenet_pytorch.npy"),
+    "opencv-sface": resolve_model_asset_path("owner_embedding_opencv_sface.npy"),
+}
 
 type FrameArray = npt.NDArray[np.uint8]
 type CameraCaptureSource = int | str
@@ -410,8 +414,17 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
         recognition_backend=str(args.recognition_backend),
+        owner_embedding_path=resolve_default_owner_embedding_path(str(args.recognition_backend)),
         transport=str(getattr(args, "transport", "webrtc")),
     )
+
+
+def resolve_default_owner_embedding_path(recognition_backend: str) -> Path:
+    """Resolve the default owner embedding asset for the selected recognition backend."""
+    try:
+        return OWNER_EMBED_PATHS[recognition_backend]
+    except KeyError as exc:
+        raise ValueError(f"unsupported recognition backend: {recognition_backend}") from exc
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -445,7 +458,7 @@ class GodModeVideoServer:
         fps: float | None = None,
         fourcc: str | None = None,
         opencv_threads: int | None = None,
-        owner_embedding_path: str | Path = OWNER_EMBED_PATH,
+        owner_embedding_path: str | Path | None = None,
         allow_live_camera: bool = False,
         diagnostics_logger: DiagnosticsLogger | None = None,
         memory_log_interval_sec: float = 30.0,
@@ -565,7 +578,15 @@ class GodModeVideoServer:
         self._app = create_http_app(self.runtime, request_logger=self._record_http_request)
         self._webrtc_broadcaster = OverlayBroadcaster()
         self._http_server: werkzeug.serving.BaseWSGIServer | None = None
-        self._load_owner_embedding(owner_embedding_path)
+        resolved_owner_embedding_path = (
+            Path(owner_embedding_path)
+            if owner_embedding_path is not None
+            else resolve_default_owner_embedding_path(recognition_backend)
+        )
+        self._load_owner_embedding(
+            resolved_owner_embedding_path,
+            recognition_backend=recognition_backend,
+        )
 
     def _bootstrap_camera_sources(
         self,
@@ -622,15 +643,34 @@ class GodModeVideoServer:
         self.runtime.set_running(self.is_running)
         return self.runtime.get_biometric_status()
 
-    def _load_owner_embedding(self, path: str | Path) -> None:
+    def _load_owner_embedding(
+        self,
+        path: str | Path,
+        *,
+        recognition_backend: str,
+    ) -> None:
         resolved = Path(path)
-        if resolved.exists():
-            self.runtime.load_owner_embedding(resolved)
-            logger.info("Owner embedding loaded: %s", resolved)
-            self._diagnostics.log_event("owner_embedding_loaded", path=str(resolved))
-        else:
-            logger.info("No owner embedding found. All faces labeled SUBJECT.")
-            self._diagnostics.log_event("owner_embedding_missing", path=str(resolved))
+        candidates = [resolved]
+        if recognition_backend == "opencv-sface" and resolved != OWNER_EMBED_PATH:
+            candidates.append(OWNER_EMBED_PATH)
+
+        for candidate in candidates:
+            if candidate.exists():
+                self.runtime.load_owner_embedding(candidate)
+                logger.info("Owner embedding loaded: %s", candidate)
+                self._diagnostics.log_event(
+                    "owner_embedding_loaded",
+                    path=str(candidate),
+                    recognition_backend=recognition_backend,
+                )
+                return
+
+        logger.info("No owner embedding found. All faces labeled SUBJECT.")
+        self._diagnostics.log_event(
+            "owner_embedding_missing",
+            path=str(resolved),
+            recognition_backend=recognition_backend,
+        )
 
     def _record_owner_presence(
         self,

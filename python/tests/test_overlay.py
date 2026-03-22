@@ -83,12 +83,30 @@ def test_owner_embedding_is_none_by_default(overlay: GodModeOverlay):
 
 
 def test_set_owner_embedding_accepts_1d_and_2d_arrays(overlay: GodModeOverlay):
+    overlay = GodModeOverlay(width=1280, height=720, recognition_backend="opencv-sface")
     overlay.set_owner_embedding(np.zeros(128, dtype=np.float32))
     assert overlay._owner_embeddings is not None
     assert overlay._owner_embeddings.shape == (1, 128)
 
     overlay.set_owner_embedding(np.zeros((2, 128), dtype=np.float32))
     assert overlay._owner_embeddings.shape == (2, 128)
+
+
+def test_set_owner_embedding_accepts_facenet_dim() -> None:
+    overlay = GodModeOverlay(width=1280, height=720, recognition_backend="facenet-pytorch")
+
+    overlay.set_owner_embedding(np.zeros((3, 512), dtype=np.float32))
+
+    assert overlay._owner_embeddings is not None
+    assert overlay._owner_embeddings.shape == (3, 512)
+
+
+def test_set_owner_embedding_rejects_mismatched_dim() -> None:
+    overlay = GodModeOverlay(width=1280, height=720, recognition_backend="facenet-pytorch")
+
+    overlay.set_owner_embedding(np.zeros((2, 128), dtype=np.float32))
+
+    assert overlay._owner_embeddings is None
 
 
 def test_detect_yunet_filters_tiny_faces(overlay: GodModeOverlay, blank_frame: np.ndarray):
