@@ -181,6 +181,36 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
     assert node_invocation["respawn"] == "0"
 
 
+def test_start_passes_recognition_backend_to_server(tmp_path: Path) -> None:
+    env, invocation_log = _build_stubbed_env(tmp_path, port=19146)
+
+    result = subprocess.run(
+        [
+            str(SCRIPT),
+            "start",
+            "--port",
+            "19146",
+            "--device",
+            "0",
+            "--recognition-backend",
+            "opencv-sface",
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    invocations = _load_invocations(invocation_log)
+    python_invocation = _find_invocation(invocations, "python")
+    python_argv = [str(item) for item in python_invocation["argv"]]
+    assert "--recognition-backend" in python_argv
+    assert python_argv[python_argv.index("--recognition-backend") + 1] == "opencv-sface"
+
+
 def test_start_passes_gpu_experiment_env_to_viewer(tmp_path: Path) -> None:
     env, invocation_log = _build_stubbed_env(tmp_path, port=19144)
     env.update(
