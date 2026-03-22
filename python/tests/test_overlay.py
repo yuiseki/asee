@@ -288,13 +288,28 @@ def test_save_face_capture_survives_room_context_provider_failure(
     assert "roomContext" not in metadata
 
 
-def test_detection_backend_opencv_default():
-    """Default backend must load cv2.FaceDetectorYN (or None if model missing)."""
-    overlay = GodModeOverlay(width=320, height=240)
-    # detector is either a cv2.FaceDetectorYN or None — never a GpuYuNetDetector
-    from asee.gpu_yunet import GpuYuNetDetector
+def test_detection_backend_default_is_insightface() -> None:
+    cpu_recognizer = object()
+    facenet_recognizer = object()
 
-    assert not isinstance(overlay._detector, GpuYuNetDetector)
+    with (
+        patch.object(GodModeOverlay, "_load_sface", return_value=cpu_recognizer),
+        patch.object(
+            GodModeOverlay,
+            "_load_facenet_recognizer",
+            return_value=facenet_recognizer,
+        ),
+        patch.object(
+            GodModeOverlay,
+            "_load_insightface_detector",
+            return_value="insightface-detector",
+        ) as load_insightface,
+        patch.object(GodModeOverlay, "_load_haar", return_value=None),
+    ):
+        overlay = GodModeOverlay(width=320, height=240)
+
+    load_insightface.assert_called_once()
+    assert overlay._detector == "insightface-detector"
 
 
 def test_recognition_backend_default_is_facenet_pytorch() -> None:
@@ -358,6 +373,36 @@ def test_detection_backend_onnxruntime_with_facenet_recognition_uses_gpu_detecto
         )
 
     assert overlay._detector == "gpu-detector"
+    assert overlay._recognizer is facenet_recognizer
+
+
+def test_detection_backend_insightface_uses_insightface_detector() -> None:
+    cpu_recognizer = object()
+    facenet_recognizer = object()
+
+    with (
+        patch.object(GodModeOverlay, "_load_sface", return_value=cpu_recognizer),
+        patch.object(
+            GodModeOverlay,
+            "_load_facenet_recognizer",
+            return_value=facenet_recognizer,
+        ),
+        patch.object(
+            GodModeOverlay,
+            "_load_insightface_detector",
+            return_value="insightface-detector",
+        ) as load_insightface,
+        patch.object(GodModeOverlay, "_load_haar", return_value=None),
+    ):
+        overlay = GodModeOverlay(
+            width=640,
+            height=640,
+            detection_backend="insightface",
+            recognition_backend="facenet-pytorch",
+        )
+
+    load_insightface.assert_called_once_with(640, 640, 320)
+    assert overlay._detector == "insightface-detector"
     assert overlay._recognizer is facenet_recognizer
 
 

@@ -18,6 +18,7 @@ OPENCV_THREADS=""
 AUTO_SHUTDOWN_SEC="0"
 DISABLE_FACE_DETECT=false
 DETECTION_BACKEND=""
+INSIGHTFACE_DET_SIZE=""
 RECOGNITION_BACKEND=""
 USE_CHROMIUM=false
 PWA_INSTALLING=false
@@ -78,7 +79,8 @@ Live capture options:
   --opencv-threads N
   --auto-shutdown-sec N
   --disable-face-detect
-  --detection-backend {opencv,onnxruntime}
+  --detection-backend {opencv,onnxruntime,insightface}
+  --insightface-det-size N
   --recognition-backend {facenet-pytorch,opencv-sface}
   --face-capture-dir PATH
   --subject-capture-dir PATH
@@ -124,6 +126,7 @@ while [[ $# -gt 0 ]]; do
     --auto-shutdown-sec) AUTO_SHUTDOWN_SEC="$2"; shift 2 ;;
     --disable-face-detect) DISABLE_FACE_DETECT=true; shift ;;
     --detection-backend) DETECTION_BACKEND="$2"; shift 2 ;;
+    --insightface-det-size) INSIGHTFACE_DET_SIZE="$2"; shift 2 ;;
     --recognition-backend) RECOGNITION_BACKEND="$2"; shift 2 ;;
     --chromium) USE_CHROMIUM=true; shift ;;
     --pwa-installing) PWA_INSTALLING=true; shift ;;
@@ -518,6 +521,7 @@ cmd_start() {
   [[ "${AUTO_SHUTDOWN_SEC}" != "0" ]] && server_args+=(--auto-shutdown-sec "${AUTO_SHUTDOWN_SEC}")
   [[ "${DISABLE_FACE_DETECT}" == "true" ]] && server_args+=(--disable-face-detect)
   [[ -n "${DETECTION_BACKEND}" ]] && server_args+=(--detection-backend "${DETECTION_BACKEND}")
+  [[ -n "${INSIGHTFACE_DET_SIZE}" ]] && server_args+=(--insightface-det-size "${INSIGHTFACE_DET_SIZE}")
   [[ -n "${RECOGNITION_BACKEND}" ]] && server_args+=(--recognition-backend "${RECOGNITION_BACKEND}")
 
   env DISPLAY="${DISPLAY}" setsid "${PYTHON_BIN}" "${server_args[@]}" > "${SERVER_LOG}" 2>&1 < /dev/null &

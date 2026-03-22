@@ -346,9 +346,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--detection-backend",
-        choices=["opencv", "onnxruntime"],
-        default="onnxruntime",
-        help="顔検出バックエンド: onnxruntime (既定, CUDA GPU 推論) または opencv (CPU)",
+        choices=["opencv", "onnxruntime", "insightface"],
+        default="insightface",
+        help=(
+            "顔検出バックエンド: insightface (既定, CUDA), "
+            "onnxruntime (YuNet CUDA), または opencv (CPU)"
+        ),
+    )
+    parser.add_argument(
+        "--insightface-det-size",
+        type=int,
+        default=320,
+        help="InsightFace detector の det_size。既定は 320",
     )
     parser.add_argument(
         "--recognition-backend",
@@ -413,6 +422,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         opencv_threads=None if args.opencv_threads is None else int(args.opencv_threads),
         enable_face_detection=not bool(args.disable_face_detect),
         detection_backend=str(args.detection_backend),
+        insightface_det_size=int(getattr(args, "insightface_det_size", 320)),
         recognition_backend=str(args.recognition_backend),
         owner_embedding_path=resolve_default_owner_embedding_path(str(args.recognition_backend)),
         transport=str(getattr(args, "transport", "webrtc")),
@@ -465,7 +475,8 @@ class GodModeVideoServer:
         auto_shutdown_sec: float = 0.0,
         enable_face_detection: bool = True,
         capture_profile: str = "auto",
-        detection_backend: str = "onnxruntime",
+        detection_backend: str = "insightface",
+        insightface_det_size: int = 320,
         recognition_backend: str = "facenet-pytorch",
         transport: str = "webrtc",
         room_context_provider: Callable[[], dict[str, Any] | None] | None = None,
@@ -515,6 +526,7 @@ class GodModeVideoServer:
             face_capture_min_interval=face_capture_min_interval,
             subject_capture_dir=subject_capture_dir,
             detection_backend=detection_backend,
+            insightface_det_size=insightface_det_size,
             recognition_backend=recognition_backend,
             room_context_provider=room_context_provider,
         )

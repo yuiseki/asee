@@ -106,7 +106,8 @@ class GodModeOverlay:
         face_capture_dir: str | None = None,
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
-        detection_backend: str = "opencv",
+        detection_backend: str = "insightface",
+        insightface_det_size: int = 320,
         recognition_backend: str = "facenet-pytorch",
         room_context_provider: RoomContextProvider | None = None,
     ) -> None:
@@ -120,7 +121,9 @@ class GodModeOverlay:
         # GPU recognizer needs a CPU counterpart for alignCrop (OpenCV implementation)
         self._cpu_recognizer = self._load_sface(sface_path)
 
-        if detection_backend == "onnxruntime":
+        if detection_backend == "insightface":
+            self._detector = self._load_insightface_detector(width, height, insightface_det_size)
+        elif detection_backend == "onnxruntime":
             self._detector = self._load_yunet_onnxruntime(yunet_path, width, height)
         else:
             self._detector = self._load_yunet(yunet_path, width, height)
@@ -333,6 +336,29 @@ class GodModeOverlay:
                 "onnxruntime YuNet load failed, falling back to OpenCV: %s", error
             )
             return self._load_yunet(path, width, height)
+
+    def _load_insightface_detector(self, width: int, height: int, det_size: int) -> Any:
+        """Load the InsightFace detector with a conservative det_size default."""
+        try:
+            from .insightface_detector import InsightFaceDetector
+
+            det = InsightFaceDetector(
+                device="cuda",
+                det_size=det_size,
+                input_size=(width, height),
+            )
+            logger.info(
+                "InsightFace detector loaded via %s (det_size=%s)",
+                det.active_provider,
+                det.det_size,
+            )
+            return det
+        except Exception as error:
+            logger.warning(
+                "InsightFace detector load failed, falling back to OpenCV YuNet: %s",
+                error,
+            )
+            return self._load_yunet(DEFAULT_YUNET_PATH, width, height)
 
     def _load_sface_onnxruntime(self, path: str) -> Any:
         """Load SFace via onnxruntime with CUDA, falling back to OpenCV on error."""

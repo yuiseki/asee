@@ -150,6 +150,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         opencv_threads=None,
         enable_face_detection=False,
         detection_backend="opencv",
+        insightface_det_size=320,
         recognition_backend="facenet-pytorch",
         owner_embedding_path=resolve_default_owner_embedding_path("facenet-pytorch"),
         transport="webrtc",
@@ -246,6 +247,14 @@ def test_build_arg_parser_accepts_detection_backend_onnxruntime() -> None:
     assert args.detection_backend == "onnxruntime"
 
 
+def test_build_arg_parser_accepts_detection_backend_insightface() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args(["--detection-backend", "insightface"])
+    assert args.detection_backend == "insightface"
+
+
 def test_build_arg_parser_accepts_recognition_backend_opencv_sface() -> None:
     from asee.video_server import build_arg_parser
 
@@ -254,13 +263,21 @@ def test_build_arg_parser_accepts_recognition_backend_opencv_sface() -> None:
     assert args.recognition_backend == "opencv-sface"
 
 
-def test_build_arg_parser_detection_backend_default_is_onnxruntime() -> None:
-    """--detection-backend must default to 'onnxruntime'."""
+def test_build_arg_parser_detection_backend_default_is_insightface() -> None:
+    """--detection-backend must default to 'insightface'."""
     from asee.video_server import build_arg_parser
 
     parser = build_arg_parser()
     args = parser.parse_args([])
-    assert args.detection_backend == "onnxruntime"
+    assert args.detection_backend == "insightface"
+
+
+def test_build_arg_parser_insightface_det_size_default_is_320() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.insightface_det_size == 320
 
 
 def test_build_arg_parser_recognition_backend_default_is_facenet_pytorch() -> None:
@@ -317,6 +334,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         opencv_threads=None,
         disable_face_detect=False,
         detection_backend="onnxruntime",
+        insightface_det_size=320,
         recognition_backend="opencv-sface",
         transport="webrtc",
     )
@@ -333,6 +351,7 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
 
     call_kwargs = server_class.call_args.kwargs
     assert call_kwargs.get("detection_backend") == "onnxruntime"
+    assert call_kwargs.get("insightface_det_size") == 320
     assert call_kwargs.get("recognition_backend") == "opencv-sface"
     assert call_kwargs.get("owner_embedding_path").name == "owner_embedding_opencv_sface.npy"
     assert call_kwargs.get("transport") == "webrtc"
@@ -362,7 +381,8 @@ def test_build_server_from_args_defaults_facenet_owner_embedding_path() -> None:
         fourcc=None,
         opencv_threads=None,
         disable_face_detect=False,
-        detection_backend="onnxruntime",
+        detection_backend="insightface",
+        insightface_det_size=320,
         recognition_backend="facenet-pytorch",
         transport="webrtc",
     )
@@ -378,6 +398,8 @@ def test_build_server_from_args_defaults_facenet_owner_embedding_path() -> None:
         build_server_from_args(args)
 
     call_kwargs = server_class.call_args.kwargs
+    assert call_kwargs.get("detection_backend") == "insightface"
+    assert call_kwargs.get("insightface_det_size") == 320
     assert call_kwargs.get("recognition_backend") == "facenet-pytorch"
     assert call_kwargs.get("owner_embedding_path").name == "owner_embedding_facenet_pytorch.npy"
 

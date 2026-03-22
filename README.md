@@ -134,6 +134,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765 --transport mjpeg
 # facenet-pytorch is now the default recognition backend; fall back to OpenCV SFace only when requested
 .venv/bin/python -m asee.video_server --port 8765 --recognition-backend opencv-sface
+# insightface detector (det_size=320) is now the default detection backend on this branch
+.venv/bin/python -m asee.video_server --port 8765 --detection-backend insightface --insightface-det-size 320
 # bounded current multicamera default
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
 # extra isolation: disable face-detect workers while checking capture stability
@@ -147,10 +149,12 @@ python3 -m venv .venv
 ```
 
 - WebRTC is now the default transport for both direct CLI runs and `tmp_main.sh` starts.
+- `insightface` is now the default face-detection backend for direct CLI runs and `tmp_main.sh` starts on this branch.
 - `facenet-pytorch` is now the default face-recognition backend for direct CLI runs and `tmp_main.sh` starts.
 - `--recognition-backend opencv-sface` keeps the legacy OpenCV recognizer available as an explicit fallback.
 - Detection and recognition backends are now decoupled:
-  - `--detection-backend onnxruntime|opencv`
+  - `--detection-backend insightface|onnxruntime|opencv`
+  - `--insightface-det-size 320`
   - `--recognition-backend facenet-pytorch|opencv-sface`
 - owner banks are now backend-specific:
   - `python/src/asee/models/owner_embedding_facenet_pytorch.npy`

@@ -153,5 +153,6 @@ Accepted
 - the next recognition slice decouples face-recognition backend selection from detection backend selection
   - `asee.video_server` now defaults recognition to `facenet-pytorch`
   - `--recognition-backend opencv-sface` preserves the previous OpenCV/SFace path as an explicit fallback
-  - detection remains independently selectable through `--detection-backend onnxruntime|opencv`
+  - detection remains independently selectable through `--detection-backend insightface|onnxruntime|opencv`
+  - the current experimental default is now `insightface` detector with `--insightface-det-size 320`
   - the centralized detection/runtime contract is unchanged; recognition still returns embeddings for the same per-camera face boxes
