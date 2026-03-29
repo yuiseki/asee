@@ -168,6 +168,19 @@ def test_start_launches_backend_and_electron_viewer_with_720p_profile(tmp_path: 
         python_argv[python_argv.index("--subject-capture-dir") + 1]
         == "/home/yuiseki/Workspaces/private/datasets/faces/others"
     )
+    assert "--full-frame-capture-dir" in python_argv
+    assert (
+        python_argv[python_argv.index("--full-frame-capture-dir") + 1]
+        == "/home/yuiseki/Workspaces/private/datasets/webcams"
+    )
+    assert "--full-frame-morning-interval-sec" in python_argv
+    assert python_argv[python_argv.index("--full-frame-morning-interval-sec") + 1] == "300"
+    assert "--full-frame-day-interval-sec" in python_argv
+    assert python_argv[python_argv.index("--full-frame-day-interval-sec") + 1] == "900"
+    assert "--full-frame-evening-interval-sec" in python_argv
+    assert python_argv[python_argv.index("--full-frame-evening-interval-sec") + 1] == "600"
+    assert "--full-frame-overnight-interval-sec" in python_argv
+    assert python_argv[python_argv.index("--full-frame-overnight-interval-sec") + 1] == "0"
 
     npm_invocation = _find_invocation(invocations, "npm")
     assert npm_invocation["argv"] == ["run", "build"]
@@ -240,6 +253,48 @@ def test_start_passes_camera_sources_to_server(tmp_path: Path) -> None:
         python_argv[python_argv.index("--camera-sources") + 1]
         == "0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast"
     )
+
+
+def test_start_passes_custom_full_frame_sampling_to_server(tmp_path: Path) -> None:
+    env, invocation_log = _build_stubbed_env(tmp_path, port=19148)
+
+    result = subprocess.run(
+        [
+            str(SCRIPT),
+            "start",
+            "--port",
+            "19148",
+            "--device",
+            "0",
+            "--full-frame-capture-dir",
+            "",
+            "--full-frame-morning-interval-sec",
+            "120",
+            "--full-frame-day-interval-sec",
+            "600",
+            "--full-frame-evening-interval-sec",
+            "480",
+            "--full-frame-overnight-interval-sec",
+            "0",
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    invocations = _load_invocations(invocation_log)
+    python_invocation = _find_invocation(invocations, "python")
+    python_argv = [str(item) for item in python_invocation["argv"]]
+    assert "--full-frame-capture-dir" in python_argv
+    assert python_argv[python_argv.index("--full-frame-capture-dir") + 1] == ""
+    assert python_argv[python_argv.index("--full-frame-morning-interval-sec") + 1] == "120"
+    assert python_argv[python_argv.index("--full-frame-day-interval-sec") + 1] == "600"
+    assert python_argv[python_argv.index("--full-frame-evening-interval-sec") + 1] == "480"
+    assert python_argv[python_argv.index("--full-frame-overnight-interval-sec") + 1] == "0"
 
 
 def test_start_passes_gpu_experiment_env_to_viewer(tmp_path: Path) -> None:

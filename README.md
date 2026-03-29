@@ -163,6 +163,21 @@ python3 -m venv .venv
   - `--cameras 0,2,4,6` keeps the legacy USB-only behavior
   - `--camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast'`
   - network sources are normalized through `getent hosts` so `.local` RTSP hosts can be resolved to IPv4 before OpenCV/FFmpeg opens them
+- full-frame sampling now lives inside `asee` instead of a competing sidecar dumper:
+  - default output root: `/home/yuiseki/Workspaces/private/datasets/webcams`
+  - per-camera layout: `video*/YYYY/MM/DD/HH/MM/frame-*.jpg` with adjacent JSON sidecars
+  - default cadence:
+    - `05:00-09:59`: every `300s`
+    - `10:00-16:59`: every `900s`
+    - `17:00-23:59`: every `600s`
+    - `00:00-04:59`: disabled
+  - tuning flags:
+    - `--full-frame-capture-dir`
+    - `--full-frame-morning-interval-sec`
+    - `--full-frame-day-interval-sec`
+    - `--full-frame-evening-interval-sec`
+    - `--full-frame-overnight-interval-sec`
+  - sidecar JSON includes the latest presence metadata (`cameraPeopleCount`, `cameraOwnerCount`, `cameraSubjectCount`, global owner/people counts) plus `roomContext` when sensor collection succeeds
 - owner banks are now backend-specific:
   - `python/src/asee/models/owner_embedding_facenet_pytorch.npy`
   - `python/src/asee/models/owner_embedding_opencv_sface.npy`

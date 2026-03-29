@@ -160,3 +160,8 @@ Accepted
   - `--cameras 0,2,4,6` keeps the legacy USB-only mapping
   - `--camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast'` lets the same runtime contract ingest mixed USB and RTSP sources
   - network capture sources are normalized through host-to-IPv4 resolution before OpenCV/FFmpeg opens them, so `.local` RTSP cameras can join the same centralized detection/recognition loop without changing `camera_id + FaceBox` downstream semantics
+- full-frame collection is now part of the runtime contract instead of a competing external dumper
+  - `asee.video_server` can periodically persist latest full-frame images from the live capture loops without taking separate camera ownership
+  - default storage is `/home/yuiseki/Workspaces/private/datasets/webcams/video*/YYYY/MM/DD/HH/MM/`
+  - the default schedule is morning/day/evening only (`300s / 900s / 600s`, overnight disabled)
+  - sidecar JSON now carries the latest presence summary and room-context metadata so later curation can split people-present vs people-absent samples without re-running inference

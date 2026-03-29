@@ -121,6 +121,11 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         face_capture_dir="",
         face_capture_min_interval=1.5,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=True,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
@@ -160,6 +165,11 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         face_capture_dir=None,
         face_capture_min_interval=1.5,
         subject_capture_dir=None,
+        full_frame_capture_dir=None,
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=True,
         diagnostics_logger=logger_class.return_value,
         memory_log_interval_sec=12.5,
@@ -191,6 +201,11 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         face_capture_dir="",
         face_capture_min_interval=1.5,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=False,
         diagnostic_log_path=None,
         memory_log_interval_sec=30.0,
@@ -240,6 +255,11 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         face_capture_dir="",
         face_capture_min_interval=1.5,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=False,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=12.5,
@@ -279,6 +299,11 @@ def test_build_server_from_args_prefers_explicit_camera_sources() -> None:
         face_capture_dir="",
         face_capture_min_interval=1.0,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=True,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=30.0,
@@ -355,6 +380,25 @@ def test_build_arg_parser_accepts_recognition_backend_opencv_sface() -> None:
     assert args.recognition_backend == "opencv-sface"
 
 
+def test_build_arg_parser_accepts_full_frame_capture_dir() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args(["--full-frame-capture-dir", "/tmp/webcams"])
+    assert args.full_frame_capture_dir == "/tmp/webcams"
+
+
+def test_build_arg_parser_full_frame_sampling_defaults_are_conservative() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args([])
+    assert args.full_frame_morning_interval_sec == 300.0
+    assert args.full_frame_day_interval_sec == 900.0
+    assert args.full_frame_evening_interval_sec == 600.0
+    assert args.full_frame_overnight_interval_sec == 0.0
+
+
 def test_build_arg_parser_detection_backend_default_is_insightface() -> None:
     """--detection-backend must default to 'insightface'."""
     from asee.video_server import build_arg_parser
@@ -411,6 +455,11 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
         face_capture_dir="",
         face_capture_min_interval=1.0,
         subject_capture_dir="",
+        full_frame_capture_dir="/tmp/webcams",
+        full_frame_morning_interval_sec=120.0,
+        full_frame_day_interval_sec=600.0,
+        full_frame_evening_interval_sec=480.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=False,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=30.0,
@@ -447,6 +496,11 @@ def test_build_server_from_args_passes_detection_backend_to_server() -> None:
     assert call_kwargs.get("recognition_backend") == "opencv-sface"
     assert call_kwargs.get("owner_embedding_path").name == "owner_embedding_opencv_sface.npy"
     assert call_kwargs.get("transport") == "webrtc"
+    assert call_kwargs.get("full_frame_capture_dir") == "/tmp/webcams"
+    assert call_kwargs.get("full_frame_morning_interval_sec") == 120.0
+    assert call_kwargs.get("full_frame_day_interval_sec") == 600.0
+    assert call_kwargs.get("full_frame_evening_interval_sec") == 480.0
+    assert call_kwargs.get("full_frame_overnight_interval_sec") == 0.0
 
 
 def test_build_server_from_args_defaults_facenet_owner_embedding_path() -> None:
@@ -459,6 +513,11 @@ def test_build_server_from_args_defaults_facenet_owner_embedding_path() -> None:
         face_capture_dir="",
         face_capture_min_interval=1.0,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=False,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=30.0,
@@ -506,6 +565,11 @@ def test_build_server_from_args_disables_room_context_when_sensor_names_are_empt
         face_capture_dir="",
         face_capture_min_interval=1.0,
         subject_capture_dir="",
+        full_frame_capture_dir="",
+        full_frame_morning_interval_sec=300.0,
+        full_frame_day_interval_sec=900.0,
+        full_frame_evening_interval_sec=600.0,
+        full_frame_overnight_interval_sec=0.0,
         allow_live_camera=False,
         diagnostic_log_path="/tmp/asee-test.jsonl",
         memory_log_interval_sec=30.0,

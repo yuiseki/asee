@@ -39,6 +39,7 @@ from .diagnostics import (
     NullDiagnosticsLogger,
     build_default_diagnostics_log_path,
 )
+from .full_frame_capture import FullFrameCaptureWriter
 from .http_app import create_http_app
 from .model_assets import resolve_model_asset_path
 from .overlay import GodModeOverlay
@@ -396,6 +397,35 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="SUBJECT 顔クロップの保存先ディレクトリ（閾値チューニング用 true negative データ）",
     )
     parser.add_argument(
+        "--full-frame-capture-dir",
+        default="/home/yuiseki/Workspaces/private/datasets/webcams",
+        help="定期 full-frame サンプリングの保存先ディレクトリ（空文字で無効化）",
+    )
+    parser.add_argument(
+        "--full-frame-morning-interval-sec",
+        type=float,
+        default=300.0,
+        help="朝帯 (05:00-09:59) の full-frame 保存間隔秒数。既定 300 秒",
+    )
+    parser.add_argument(
+        "--full-frame-day-interval-sec",
+        type=float,
+        default=900.0,
+        help="昼帯 (10:00-16:59) の full-frame 保存間隔秒数。既定 900 秒",
+    )
+    parser.add_argument(
+        "--full-frame-evening-interval-sec",
+        type=float,
+        default=600.0,
+        help="晩帯 (17:00-23:59) の full-frame 保存間隔秒数。既定 600 秒",
+    )
+    parser.add_argument(
+        "--full-frame-overnight-interval-sec",
+        type=float,
+        default=0.0,
+        help="深夜帯 (00:00-04:59) の full-frame 保存間隔秒数。既定 0 で無効",
+    )
+    parser.add_argument(
         "--motion-sensor-name",
         default="リビングルームの人感センサー",
         help="face crop sidecar に記録する SwitchBot Motion Sensor の名前。空文字で無効化",
@@ -531,6 +561,11 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         face_capture_dir=str(args.face_capture_dir) or None,
         face_capture_min_interval=float(args.face_capture_min_interval),
         subject_capture_dir=str(args.subject_capture_dir) or None,
+        full_frame_capture_dir=str(args.full_frame_capture_dir) or None,
+        full_frame_morning_interval_sec=float(args.full_frame_morning_interval_sec),
+        full_frame_day_interval_sec=float(args.full_frame_day_interval_sec),
+        full_frame_evening_interval_sec=float(args.full_frame_evening_interval_sec),
+        full_frame_overnight_interval_sec=float(args.full_frame_overnight_interval_sec),
         allow_live_camera=allow_live_camera,
         diagnostics_logger=diagnostics_logger,
         memory_log_interval_sec=float(args.memory_log_interval_sec),
@@ -586,6 +621,11 @@ class GodModeVideoServer:
         face_capture_dir: str | None = None,
         face_capture_min_interval: float = 1.0,
         subject_capture_dir: str | None = None,
+        full_frame_capture_dir: str | None = None,
+        full_frame_morning_interval_sec: float = 300.0,
+        full_frame_day_interval_sec: float = 900.0,
+        full_frame_evening_interval_sec: float = 600.0,
+        full_frame_overnight_interval_sec: float = 0.0,
         width: int | None = None,
         height: int | None = None,
         fps: float | None = None,
@@ -656,6 +696,18 @@ class GodModeVideoServer:
             insightface_det_size=insightface_det_size,
             recognition_backend=recognition_backend,
             room_context_provider=room_context_provider,
+        )
+        self._room_context_provider = room_context_provider
+        self._full_frame_capture_writer = (
+            FullFrameCaptureWriter(
+                full_frame_capture_dir,
+                morning_interval_sec=full_frame_morning_interval_sec,
+                day_interval_sec=full_frame_day_interval_sec,
+                evening_interval_sec=full_frame_evening_interval_sec,
+                overnight_interval_sec=full_frame_overnight_interval_sec,
+            )
+            if full_frame_capture_dir is not None
+            else None
         )
         self.runtime = SeeingServerRuntime(
             title=title,
@@ -1165,6 +1217,7 @@ class GodModeVideoServer:
                 continue
             self.update_frame(normalized)
             self._record_capture_success(current_device, normalized)
+            self._maybe_save_full_frame_sample(current_device, normalized)
 
         cap.release()
         logger.info("Camera released")
@@ -1209,6 +1262,7 @@ class GodModeVideoServer:
                 continue
             self.update_frame(normalized, camera_id=device)
             self._record_capture_success(device, normalized)
+            self._maybe_save_full_frame_sample(device, normalized)
 
         cap.release()
         logger.info("Camera %s released", device)
@@ -1579,6 +1633,47 @@ class GodModeVideoServer:
                 read_failures=stats.read_failures,
                 consecutive_read_failures=stats.consecutive_read_failures,
             )
+
+    def _maybe_save_full_frame_sample(self, camera_id: int, frame: FrameArray) -> None:
+        writer = self._full_frame_capture_writer
+        if writer is None:
+            return
+
+        faces = self.runtime.get_faces(camera_id)
+        camera_owner_count = sum(1 for face in faces if getattr(face, "label", "") == "OWNER")
+        camera_subject_count = sum(1 for face in faces if getattr(face, "label", "") != "OWNER")
+        biometric_status = self.runtime.get_biometric_status()
+        global_owner_count = biometric_status.get("ownerCount")
+        global_subject_count = biometric_status.get("subjectCount")
+        global_people_count = biometric_status.get("peopleCount")
+        metadata: dict[str, Any] = {
+            "cameraSource": str(self._camera_sources.get(camera_id, camera_id)),
+            "width": int(frame.shape[1]),
+            "height": int(frame.shape[0]),
+            "requestedWidth": int(self.width),
+            "requestedHeight": int(self.height),
+            "requestedFps": float(self._capture_fps),
+            "requestedFourcc": self._capture_fourcc,
+            "presence": {
+                "cameraPeopleCount": len(faces),
+                "cameraOwnerCount": camera_owner_count,
+                "cameraSubjectCount": camera_subject_count,
+                "globalOwnerPresent": bool(biometric_status["ownerPresent"]),
+                "globalOwnerCount": int(global_owner_count or 0),
+                "globalSubjectCount": int(global_subject_count or 0),
+                "globalPeopleCount": int(global_people_count or 0),
+                "globalOwnerSeenAgoMs": biometric_status["ownerSeenAgoMs"],
+            },
+        }
+        if self._room_context_provider is not None:
+            try:
+                room_context = self._room_context_provider()
+            except Exception as error:
+                logger.warning("full-frame room context provider failed: %s", error)
+            else:
+                if room_context is not None:
+                    metadata["roomContext"] = room_context
+        writer.save(frame, camera_id=camera_id, metadata=metadata)
 
     def _record_detection(
         self,

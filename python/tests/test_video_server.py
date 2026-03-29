@@ -216,6 +216,64 @@ class TestGodModeVideoServer:
         assert server.runtime.overlay_state.caption == "テスト観測"
         assert server.runtime.overlay_state.prediction == "テスト予測"
 
+    def test_maybe_save_full_frame_sample_includes_presence_metadata(self) -> None:
+        server = GodModeVideoServer(
+            port=188670,
+            device_index=None,
+            camera_list=[4],
+            allow_live_camera=True,
+        )
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        faces = [
+            FaceBox(x=10, y=10, w=40, h=40, label="OWNER", confidence=0.9),
+            FaceBox(x=60, y=10, w=40, h=40, label="SUBJECT", confidence=0.6),
+        ]
+        saved_calls: list[dict[str, object]] = []
+
+        class FakeWriter:
+            def save(
+                self,
+                image: np.ndarray,
+                *,
+                camera_id: int,
+                metadata: dict[str, object] | None = None,
+            ) -> bool:
+                saved_calls.append(
+                    {
+                        "shape": image.shape,
+                        "camera_id": camera_id,
+                        "metadata": metadata or {},
+                    }
+                )
+                return True
+
+        server._full_frame_capture_writer = FakeWriter()
+        with server._face_locks_per_cam[4]:
+            server._face_boxes_per_cam[4] = list(faces)
+        server.runtime.record_faces(faces, camera_id=4)
+        server._camera_sources[4] = "rtsp://atomcam-hoge.local:8554/video0_unicast"
+
+        server._maybe_save_full_frame_sample(4, frame)
+
+        assert len(saved_calls) == 1
+        saved = saved_calls[0]
+        assert saved["shape"] == frame.shape
+        assert saved["camera_id"] == 4
+        metadata = saved["metadata"]
+        assert metadata["cameraSource"] == "rtsp://atomcam-hoge.local:8554/video0_unicast"
+        assert metadata["width"] == 1280
+        assert metadata["height"] == 720
+        assert metadata["presence"] == {
+            "cameraPeopleCount": 2,
+            "cameraOwnerCount": 1,
+            "cameraSubjectCount": 1,
+            "globalOwnerPresent": True,
+            "globalOwnerCount": 1,
+            "globalSubjectCount": 1,
+            "globalPeopleCount": 2,
+            "globalOwnerSeenAgoMs": 0,
+        }
+
     def test_centralized_detection_worker_saves_face_crops_after_classification(self) -> None:
         server = GodModeVideoServer(
             port=188671,

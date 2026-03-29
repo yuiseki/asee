@@ -26,6 +26,11 @@ PWA_INSTALLING=false
 OLLAMA_VLM=false
 FACE_CAPTURE_DIR="${ASEE_FACE_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/faces/_raw}"
 SUBJECT_CAPTURE_DIR="${ASEE_SUBJECT_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/faces/others}"
+FULL_FRAME_CAPTURE_DIR="${ASEE_FULL_FRAME_CAPTURE_DIR:-/home/yuiseki/Workspaces/private/datasets/webcams}"
+FULL_FRAME_MORNING_INTERVAL_SEC="${ASEE_FULL_FRAME_MORNING_INTERVAL_SEC:-300}"
+FULL_FRAME_DAY_INTERVAL_SEC="${ASEE_FULL_FRAME_DAY_INTERVAL_SEC:-900}"
+FULL_FRAME_EVENING_INTERVAL_SEC="${ASEE_FULL_FRAME_EVENING_INTERVAL_SEC:-600}"
+FULL_FRAME_OVERNIGHT_INTERVAL_SEC="${ASEE_FULL_FRAME_OVERNIGHT_INTERVAL_SEC:-0}"
 VIEWER_POLL_INTERVAL_MS="${ASEE_VIEWER_POLL_INTERVAL_MS:-2000}"
 VIEWER_RESPAWN="${ASEE_VIEWER_RESPAWN:-1}"
 VIEWER_RESPAWN_DELAY_SEC="${ASEE_VIEWER_RESPAWN_DELAY_SEC:-2}"
@@ -86,6 +91,11 @@ Live capture options:
   --recognition-backend {facenet-pytorch,opencv-sface}
   --face-capture-dir PATH
   --subject-capture-dir PATH
+  --full-frame-capture-dir PATH
+  --full-frame-morning-interval-sec N
+  --full-frame-day-interval-sec N
+  --full-frame-evening-interval-sec N
+  --full-frame-overnight-interval-sec N
 
 Layout options:
   --full-screen
@@ -136,6 +146,11 @@ while [[ $# -gt 0 ]]; do
     --ollama-vlm) OLLAMA_VLM=true; shift ;;
     --face-capture-dir) FACE_CAPTURE_DIR="$2"; shift 2 ;;
     --subject-capture-dir) SUBJECT_CAPTURE_DIR="$2"; shift 2 ;;
+    --full-frame-capture-dir) FULL_FRAME_CAPTURE_DIR="$2"; shift 2 ;;
+    --full-frame-morning-interval-sec) FULL_FRAME_MORNING_INTERVAL_SEC="$2"; shift 2 ;;
+    --full-frame-day-interval-sec) FULL_FRAME_DAY_INTERVAL_SEC="$2"; shift 2 ;;
+    --full-frame-evening-interval-sec) FULL_FRAME_EVENING_INTERVAL_SEC="$2"; shift 2 ;;
+    --full-frame-overnight-interval-sec) FULL_FRAME_OVERNIGHT_INTERVAL_SEC="$2"; shift 2 ;;
     --full-screen) LAYOUT_MODE="full-screen"; shift ;;
     --left-bottom) LAYOUT_MODE="left-bottom"; shift ;;
     --frontmost) LAYOUT_MODE="frontmost"; shift ;;
@@ -513,6 +528,11 @@ cmd_start() {
     --title "${WINDOW_TITLE}"
     --face-capture-dir "${FACE_CAPTURE_DIR}"
     --subject-capture-dir "${SUBJECT_CAPTURE_DIR}"
+    --full-frame-capture-dir "${FULL_FRAME_CAPTURE_DIR}"
+    --full-frame-morning-interval-sec "${FULL_FRAME_MORNING_INTERVAL_SEC}"
+    --full-frame-day-interval-sec "${FULL_FRAME_DAY_INTERVAL_SEC}"
+    --full-frame-evening-interval-sec "${FULL_FRAME_EVENING_INTERVAL_SEC}"
+    --full-frame-overnight-interval-sec "${FULL_FRAME_OVERNIGHT_INTERVAL_SEC}"
   )
   [[ -n "${CAMERAS}" ]] && server_args+=(--cameras "${CAMERAS}")
   [[ -n "${CAMERA_SOURCES}" ]] && server_args+=(--camera-sources "${CAMERA_SOURCES}")
