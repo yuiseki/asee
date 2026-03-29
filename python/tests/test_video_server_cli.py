@@ -14,6 +14,7 @@ from asee.video_server import (
     build_server_from_args,
     main,
     resolve_camera_args,
+    resolve_camera_source_args,
     resolve_capture_settings,
     resolve_default_owner_embedding_path,
     resolve_opencv_threads,
@@ -39,6 +40,26 @@ def test_resolve_camera_args_uses_first_camera_when_csv_is_present() -> None:
 
     assert device_index == 2
     assert camera_list == [2, 4, 6]
+
+
+def test_resolve_camera_source_args_parses_mixed_usb_and_rtsp_sources() -> None:
+    device_index, camera_list, camera_source_map = resolve_camera_source_args(
+        camera_sources_csv=(
+            "0@0,"
+            "2@2,"
+            "4@rtsp://atomcam-hoge.local:8554/video0_unicast,"
+            "6@rtsp://atomcam-fuga.local:8554/video0_unicast"
+        )
+    )
+
+    assert device_index == 0
+    assert camera_list == [0, 2, 4, 6]
+    assert camera_source_map == {
+        0: 0,
+        2: 2,
+        4: "rtsp://atomcam-hoge.local:8554/video0_unicast",
+        6: "rtsp://atomcam-fuga.local:8554/video0_unicast",
+    }
 
 
 def test_resolve_capture_settings_defaults_multicamera_to_720p_30fps() -> None:
@@ -94,6 +115,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         port=8765,
         device=0,
         cameras="",
+        camera_sources="",
         cam_interval=60,
         title="GOD MODE",
         face_capture_dir="",
@@ -132,6 +154,7 @@ def test_build_server_from_args_disables_empty_capture_dirs() -> None:
         port=8765,
         device_index=0,
         camera_list=None,
+        camera_source_map=None,
         cam_interval=60,
         title="GOD MODE",
         face_capture_dir=None,
@@ -162,6 +185,7 @@ def test_build_server_from_args_defaults_to_persistent_diagnostics_log_path() ->
         port=8765,
         device=-1,
         cameras="",
+        camera_sources="",
         cam_interval=60,
         title="GOD MODE",
         face_capture_dir="",
@@ -210,6 +234,7 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         port=8765,
         device=0,
         cameras="",
+        camera_sources="",
         cam_interval=60,
         title="GOD MODE",
         face_capture_dir="",
@@ -238,6 +263,60 @@ def test_build_server_from_args_rejects_live_camera_without_explicit_opt_in() ->
         build_server_from_args(args)
 
 
+def test_build_server_from_args_prefers_explicit_camera_sources() -> None:
+    args = SimpleNamespace(
+        port=8765,
+        device=0,
+        cameras="0,2,4,6",
+        camera_sources=(
+            "0@0,"
+            "2@2,"
+            "4@rtsp://atomcam-hoge.local:8554/video0_unicast,"
+            "6@rtsp://atomcam-fuga.local:8554/video0_unicast"
+        ),
+        cam_interval=60,
+        title="GOD MODE",
+        face_capture_dir="",
+        face_capture_min_interval=1.0,
+        subject_capture_dir="",
+        allow_live_camera=True,
+        diagnostic_log_path="/tmp/asee-test.jsonl",
+        memory_log_interval_sec=30.0,
+        auto_shutdown_sec=0.0,
+        capture_profile="auto",
+        motion_sensor_name="",
+        meter_name="",
+        room_context_ttl_sec=5.0,
+        width=None,
+        height=None,
+        fps=None,
+        fourcc=None,
+        opencv_threads=None,
+        disable_face_detect=False,
+        detection_backend="insightface",
+        insightface_det_size=320,
+        recognition_backend="facenet-pytorch",
+        transport="webrtc",
+    )
+
+    with (
+        patch("asee.video_server.GodModeVideoServer") as server_class,
+        patch("asee.video_server.JsonlDiagnosticsLogger"),
+        patch("asee.video_server.SwitchBotRoomContextProvider"),
+    ):
+        build_server_from_args(args)
+
+    call_kwargs = server_class.call_args.kwargs
+    assert call_kwargs["device_index"] == 0
+    assert call_kwargs["camera_list"] == [0, 2, 4, 6]
+    assert call_kwargs["camera_source_map"] == {
+        0: 0,
+        2: 2,
+        4: "rtsp://atomcam-hoge.local:8554/video0_unicast",
+        6: "rtsp://atomcam-fuga.local:8554/video0_unicast",
+    }
+
+
 def test_build_arg_parser_accepts_detection_backend_onnxruntime() -> None:
     """--detection-backend onnxruntime must be accepted by the arg parser."""
     from asee.video_server import build_arg_parser
@@ -253,6 +332,19 @@ def test_build_arg_parser_accepts_detection_backend_insightface() -> None:
     parser = build_arg_parser()
     args = parser.parse_args(["--detection-backend", "insightface"])
     assert args.detection_backend == "insightface"
+
+
+def test_build_arg_parser_accepts_camera_sources() -> None:
+    from asee.video_server import build_arg_parser
+
+    parser = build_arg_parser()
+    args = parser.parse_args(
+        [
+            "--camera-sources",
+            "0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast",
+        ]
+    )
+    assert args.camera_sources == "0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast"
 
 
 def test_build_arg_parser_accepts_recognition_backend_opencv_sface() -> None:

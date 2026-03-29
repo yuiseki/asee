@@ -19,6 +19,7 @@ from asee.video_server import (
     build_arg_parser,
     decode_fourcc_value,
     encode_frame_to_jpeg,
+    normalize_network_capture_source,
     resolve_opencv_threads,
 )
 
@@ -790,6 +791,52 @@ class TestOpenCameraResolution:
 
         expected_mjpg = cv2.VideoWriter_fourcc(*"MJPG")
         assert expected_mjpg in fourcc_calls
+
+    def test_normalize_network_capture_source_resolves_local_hostname(self) -> None:
+        class Completed:
+            def __init__(self) -> None:
+                self.returncode = 0
+                self.stdout = "192.168.0.106 atomcam-hoge.local\n"
+
+        with patch("asee.video_server.subprocess.run", return_value=Completed()):
+            resolved = normalize_network_capture_source(
+                "rtsp://atomcam-hoge.local:8554/video0_unicast"
+            )
+
+        assert resolved == "rtsp://192.168.0.106:8554/video0_unicast"
+
+    def test_open_camera_uses_ffmpeg_without_usb_capture_tuning_for_rtsp(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        import cv2
+
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.get.side_effect = lambda prop: {
+            cv2.CAP_PROP_FRAME_WIDTH: 1920.0,
+            cv2.CAP_PROP_FRAME_HEIGHT: 1080.0,
+            cv2.CAP_PROP_FPS: 15.0,
+            cv2.CAP_PROP_FOURCC: float(cv2.VideoWriter_fourcc(*"H264")),
+        }.get(prop, 0.0)
+
+        with (
+            patch(
+                "asee.video_server.normalize_network_capture_source",
+                return_value="rtsp://192.168.0.106:8554/video0_unicast",
+            ),
+            patch("cv2.VideoCapture", return_value=mock_cap) as video_capture,
+        ):
+            server = GodModeVideoServer(
+                device_index=None,
+                camera_list=[4],
+                camera_source_map={4: "rtsp://atomcam-hoge.local:8554/video0_unicast"},
+                allow_live_camera=True,
+            )
+            server._open_camera(4)
+
+        assert video_capture.call_args.args[0] == "rtsp://192.168.0.106:8554/video0_unicast"
+        assert video_capture.call_args.args[1] == getattr(cv2, "CAP_FFMPEG", cv2.CAP_ANY)
+        assert mock_cap.set.call_args_list == [call(cv2.CAP_PROP_BUFFERSIZE, 1)]
 
     def test_captured_frame_resized_to_output_resolution(self) -> None:
         server = GodModeVideoServer(device_index=None, width=1280, height=720)

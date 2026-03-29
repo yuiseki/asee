@@ -5,15 +5,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import faulthandler
+import ipaddress
 import logging
 import os
 import platform
+import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 import cv2
 import numpy as np
@@ -186,6 +189,111 @@ def resolve_camera_args(*, device: int, cameras_csv: str) -> tuple[int | None, l
     return device, None
 
 
+def resolve_camera_source_args(
+    *,
+    camera_sources_csv: str,
+) -> tuple[int | None, list[int] | None, dict[int, CameraCaptureSource] | None]:
+    """Resolve logical camera ids mapped to explicit capture sources.
+
+    Format:
+      0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast
+    """
+    if not camera_sources_csv.strip():
+        return None, None, None
+    camera_source_map: dict[int, CameraCaptureSource] = {}
+    for raw_entry in camera_sources_csv.split(","):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+        if "@" not in entry:
+            raise ValueError(
+                "camera source entries must use '<camera_id>@<source>' format"
+            )
+        camera_id_text, source_text = entry.split("@", 1)
+        camera_id = int(camera_id_text.strip())
+        source_value = source_text.strip()
+        if not source_value:
+            raise ValueError("camera source must not be empty")
+        source: CameraCaptureSource
+        if source_value.lstrip("-").isdigit():
+            source = int(source_value)
+        else:
+            source = source_value
+        camera_source_map[camera_id] = source
+    if not camera_source_map:
+        return None, None, None
+    camera_list = list(camera_source_map.keys())
+    return camera_list[0], camera_list, camera_source_map
+
+
+def is_network_capture_source(source: str) -> bool:
+    """Return True when the source string is a network media URL."""
+    scheme = urlsplit(source).scheme.lower()
+    return scheme in {"rtsp", "rtsps", "http", "https", "tcp", "udp", "rtmp"}
+
+
+def resolve_hostname_ipv4(hostname: str, *, timeout_sec: float = 1.0) -> str | None:
+    """Resolve a hostname to IPv4 via getent without relying on Python mDNS support."""
+    try:
+        completed = subprocess.run(
+            ["getent", "hosts", hostname],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    for line in completed.stdout.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        candidate = parts[0].strip()
+        try:
+            parsed = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if parsed.version == 4:
+            return candidate
+    return None
+
+
+def _build_url_with_host(parts: SplitResult, host: str) -> str:
+    """Replace the hostname in a parsed URL while preserving auth and port."""
+    username = parts.username or ""
+    password = parts.password or ""
+    auth = ""
+    if username:
+        auth = username
+        if password:
+            auth += f":{password}"
+        auth += "@"
+    port = f":{parts.port}" if parts.port is not None else ""
+    netloc = f"{auth}{host}{port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+def normalize_network_capture_source(source: str) -> str:
+    """Resolve network capture hostnames to IPv4 when possible."""
+    if not is_network_capture_source(source):
+        return source
+    parts = urlsplit(source)
+    hostname = parts.hostname
+    if hostname is None:
+        return source
+    try:
+        ipaddress.ip_address(hostname)
+        return source
+    except ValueError:
+        pass
+    resolved = resolve_hostname_ipv4(hostname)
+    if resolved is None:
+        return source
+    return _build_url_with_host(parts, resolved)
+
+
 def discover_stable_camera_source(device_index: int) -> str | None:
     """Return a stable V4L symlink for the current numeric device, if available."""
     device_path = Path(f"/dev/video{device_index}")
@@ -259,6 +367,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--cameras",
         default="",
         help="カンマ区切りのデバイス番号リスト (例: 0,2). 指定すると複数カメラを同時配信",
+    )
+    parser.add_argument(
+        "--camera-sources",
+        default="",
+        help=(
+            "論理 camera_id と capture source の対応。"
+            "例: 0@0,2@2,4@rtsp://cam-a:8554/video0_unicast,"
+            "6@rtsp://cam-b:8554/video0_unicast"
+        ),
     )
     parser.add_argument("--cam-interval", type=int, default=60)
     parser.add_argument("--title", default="GOD MODE", help="ウィンドウタイトル")
@@ -376,10 +493,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
     """Build a server instance from parsed CLI arguments."""
-    device_index, camera_list = resolve_camera_args(
-        device=int(args.device),
-        cameras_csv=str(args.cameras),
+    device_index, camera_list, camera_source_map = resolve_camera_source_args(
+        camera_sources_csv=str(getattr(args, "camera_sources", "")),
     )
+    if camera_source_map is None:
+        device_index, camera_list = resolve_camera_args(
+            device=int(args.device),
+            cameras_csv=str(args.cameras),
+        )
     allow_live_camera = bool(args.allow_live_camera)
     if (camera_list or device_index is not None) and not allow_live_camera:
         raise LiveCameraDisabledError(
@@ -404,6 +525,7 @@ def build_server_from_args(args: argparse.Namespace) -> GodModeVideoServer:
         port=int(args.port),
         device_index=device_index,
         camera_list=camera_list,
+        camera_source_map=camera_source_map,
         cam_interval=int(args.cam_interval),
         title=str(args.title),
         face_capture_dir=str(args.face_capture_dir) or None,
@@ -458,6 +580,7 @@ class GodModeVideoServer:
         port: int = 8765,
         device_index: int | None = 0,
         camera_list: list[int] | None = None,
+        camera_source_map: dict[int, CameraCaptureSource] | None = None,
         cam_interval: int = 60,
         title: str = "GOD MODE",
         face_capture_dir: str | None = None,
@@ -481,7 +604,11 @@ class GodModeVideoServer:
         transport: str = "webrtc",
         room_context_provider: Callable[[], dict[str, Any] | None] | None = None,
     ) -> None:
-        requested_camera_list = camera_list or ([device_index] if device_index is not None else [])
+        requested_camera_list = (
+            list(camera_source_map.keys())
+            if camera_source_map
+            else (camera_list or ([device_index] if device_index is not None else []))
+        )
         if requested_camera_list and not allow_live_camera:
             raise LiveCameraDisabledError(
                 "Live camera access is disabled by default. Pass --allow-live-camera to opt in."
@@ -569,7 +696,11 @@ class GodModeVideoServer:
             device: CameraRuntimeStats() for device in self._camera_list
         }
         self._single_camera_stats = CameraRuntimeStats()
-        self._camera_sources = self._bootstrap_camera_sources(self._camera_list)
+        self._explicit_camera_sources = dict(camera_source_map or {})
+        self._camera_sources = self._bootstrap_camera_sources(
+            self._camera_list,
+            explicit_sources=self._explicit_camera_sources,
+        )
         if self.device_index is not None:
             self._single_camera_source: CameraCaptureSource = (
                 discover_stable_camera_source(self.device_index) or self.device_index
@@ -603,10 +734,18 @@ class GodModeVideoServer:
     def _bootstrap_camera_sources(
         self,
         camera_ids: Sequence[int],
+        *,
+        explicit_sources: dict[int, CameraCaptureSource] | None = None,
     ) -> dict[int, CameraCaptureSource]:
         assigned: dict[int, CameraCaptureSource] = {}
         used_sources: set[str] = set()
         for device in camera_ids:
+            explicit = None if explicit_sources is None else explicit_sources.get(device)
+            if explicit is not None:
+                assigned[device] = explicit
+                if isinstance(explicit, str) and Path(explicit).exists():
+                    used_sources.add(explicit)
+                continue
             discovered = discover_stable_camera_source(device)
             if discovered is not None:
                 assigned[device] = discovered
@@ -856,8 +995,13 @@ class GodModeVideoServer:
     def _resolve_camera_source(self, device_index: int) -> CameraCaptureSource:
         stored = self._camera_sources.get(device_index)
         if stored is not None:
-            if isinstance(stored, str) and Path(stored).exists():
-                return stored
+            if isinstance(stored, str):
+                if is_network_capture_source(stored):
+                    resolved = normalize_network_capture_source(stored)
+                    self._camera_sources[device_index] = resolved
+                    return resolved
+                if Path(stored).exists():
+                    return stored
             if isinstance(stored, int):
                 discovered = discover_stable_camera_source(stored)
                 if discovered is not None:
@@ -886,12 +1030,17 @@ class GodModeVideoServer:
             requested_fps=self._capture_fps,
             requested_fourcc=self._capture_fourcc,
         )
-        cap = cv2.VideoCapture(source)
-        fourcc = cv2.VideoWriter_fourcc(*self._capture_fourcc)  # type: ignore[attr-defined]
-        cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        cap.set(cv2.CAP_PROP_FPS, self._capture_fps)
+        if isinstance(source, str) and is_network_capture_source(source):
+            cap = cv2.VideoCapture(source, getattr(cv2, "CAP_FFMPEG", cv2.CAP_ANY))
+            if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        else:
+            cap = cv2.VideoCapture(source)
+            fourcc = cv2.VideoWriter_fourcc(*self._capture_fourcc)  # type: ignore[attr-defined]
+            cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            cap.set(cv2.CAP_PROP_FPS, self._capture_fps)
         if not cap.isOpened():
             logger.error("Cannot open camera device %s (source=%s)", device_index, source)
             self._diagnostics.log_event(

@@ -32,6 +32,7 @@ Agentic seeing split into a Python backend and an Electron viewer surface.
 
 ```bash
 ./tmp_main.sh start --port 8765 --cameras 0,2,4,6 --capture-profile 720p --auto-shutdown-sec 30
+./tmp_main.sh start --port 8765 --camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast' --capture-profile 720p --auto-shutdown-sec 30
 ./tmp_main.sh status --port 8765
 ./tmp_main.sh layout --port 8765 --left-bottom
 ./tmp_main.sh stop --port 8765
@@ -138,6 +139,8 @@ python3 -m venv .venv
 .venv/bin/python -m asee.video_server --port 8765 --detection-backend insightface --insightface-det-size 320
 # bounded current multicamera default
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --auto-shutdown-sec 30
+# bounded mixed USB + RTSP topology while preserving logical camera ids
+.venv/bin/python -m asee.video_server --port 8765 --camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast' --allow-live-camera --auto-shutdown-sec 30
 # extra isolation: disable face-detect workers while checking capture stability
 .venv/bin/python -m asee.video_server --port 8765 --cameras 0,2,4,6 --allow-live-camera --disable-face-detect --auto-shutdown-sec 30
 # bounded 720p multi-camera trial
@@ -156,6 +159,10 @@ python3 -m venv .venv
   - `--detection-backend insightface|onnxruntime|opencv`
   - `--insightface-det-size 320`
   - `--recognition-backend facenet-pytorch|opencv-sface`
+- capture sources can now be bound to explicit logical camera ids:
+  - `--cameras 0,2,4,6` keeps the legacy USB-only behavior
+  - `--camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast'`
+  - network sources are normalized through `getent hosts` so `.local` RTSP hosts can be resolved to IPv4 before OpenCV/FFmpeg opens them
 - owner banks are now backend-specific:
   - `python/src/asee/models/owner_embedding_facenet_pytorch.npy`
   - `python/src/asee/models/owner_embedding_opencv_sface.npy`

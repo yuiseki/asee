@@ -156,3 +156,7 @@ Accepted
   - detection remains independently selectable through `--detection-backend insightface|onnxruntime|opencv`
   - the current experimental default is now `insightface` detector with `--insightface-det-size 320`
   - the centralized detection/runtime contract is unchanged; recognition still returns embeddings for the same per-camera face boxes
+- capture topology can now be selected independently from logical camera ids
+  - `--cameras 0,2,4,6` keeps the legacy USB-only mapping
+  - `--camera-sources '0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast'` lets the same runtime contract ingest mixed USB and RTSP sources
+  - network capture sources are normalized through host-to-IPv4 resolution before OpenCV/FFmpeg opens them, so `.local` RTSP cameras can join the same centralized detection/recognition loop without changing `camera_id + FaceBox` downstream semantics

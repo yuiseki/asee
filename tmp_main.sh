@@ -8,6 +8,7 @@ PORT=8765
 INTERVAL=45
 VOICE=false
 CAMERAS=""
+CAMERA_SOURCES=""
 CAM_INTERVAL=60
 CAPTURE_PROFILE="auto"
 CAPTURE_WIDTH=""
@@ -70,6 +71,7 @@ Live capture options:
   --device N
   --port N
   --cameras 0,2,4,6
+  --camera-sources 0@0,2@2,4@rtsp://cam-a:8554/video0_unicast,6@rtsp://cam-b:8554/video0_unicast
   --cam-interval N
   --capture-profile auto|720p
   --width N
@@ -116,6 +118,7 @@ while [[ $# -gt 0 ]]; do
     --interval) INTERVAL="$2"; shift 2 ;;
     --voice) VOICE=true; shift ;;
     --cameras) CAMERAS="$2"; shift 2 ;;
+    --camera-sources) CAMERA_SOURCES="$2"; shift 2 ;;
     --cam-interval) CAM_INTERVAL="$2"; shift 2 ;;
     --capture-profile) CAPTURE_PROFILE="$2"; shift 2 ;;
     --width) CAPTURE_WIDTH="$2"; shift 2 ;;
@@ -512,6 +515,7 @@ cmd_start() {
     --subject-capture-dir "${SUBJECT_CAPTURE_DIR}"
   )
   [[ -n "${CAMERAS}" ]] && server_args+=(--cameras "${CAMERAS}")
+  [[ -n "${CAMERA_SOURCES}" ]] && server_args+=(--camera-sources "${CAMERA_SOURCES}")
   [[ "${CAPTURE_PROFILE}" != "auto" ]] && server_args+=(--capture-profile "${CAPTURE_PROFILE}")
   [[ -n "${CAPTURE_WIDTH}" ]] && server_args+=(--width "${CAPTURE_WIDTH}")
   [[ -n "${CAPTURE_HEIGHT}" ]] && server_args+=(--height "${CAPTURE_HEIGHT}")

@@ -211,6 +211,37 @@ def test_start_passes_recognition_backend_to_server(tmp_path: Path) -> None:
     assert python_argv[python_argv.index("--recognition-backend") + 1] == "opencv-sface"
 
 
+def test_start_passes_camera_sources_to_server(tmp_path: Path) -> None:
+    env, invocation_log = _build_stubbed_env(tmp_path, port=19147)
+
+    result = subprocess.run(
+        [
+            str(SCRIPT),
+            "start",
+            "--port",
+            "19147",
+            "--camera-sources",
+            "0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast",
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    invocations = _load_invocations(invocation_log)
+    python_invocation = _find_invocation(invocations, "python")
+    python_argv = [str(item) for item in python_invocation["argv"]]
+    assert "--camera-sources" in python_argv
+    assert (
+        python_argv[python_argv.index("--camera-sources") + 1]
+        == "0@0,2@2,4@rtsp://atomcam-hoge.local:8554/video0_unicast,6@rtsp://atomcam-fuga.local:8554/video0_unicast"
+    )
+
+
 def test_start_passes_gpu_experiment_env_to_viewer(tmp_path: Path) -> None:
     env, invocation_log = _build_stubbed_env(tmp_path, port=19144)
     env.update(
