@@ -26,7 +26,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^26.0.0",
     "typescript": "^5.8.2",
-    "vite": "^6.2.1",
+    "vite": "^6.4.2",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^3.0.8"
